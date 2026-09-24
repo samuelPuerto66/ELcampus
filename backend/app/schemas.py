@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
 
 from .models import (
     EstadoCierreCaja,
@@ -16,8 +16,11 @@ from .models import (
 
 
 class Credenciales(BaseModel):
+    # En "nombre" puede venir el nombre de usuario o el correo: el servidor
+    # busca por los dos. El código solo lo exigen las cuentas de administrador.
     nombre: str
     clave: str
+    codigo: str | None = None
 
 
 class Sesion(BaseModel):
@@ -32,6 +35,16 @@ class UsuarioCrear(BaseModel):
     nombre: str
     rol: RolUsuario
     clave: str
+    correo: EmailStr | None = None
+
+
+class UsuarioEditar(BaseModel):
+    """Todo opcional: se manda solo lo que se quiere cambiar."""
+
+    correo: EmailStr | None = None
+    rol: RolUsuario | None = None
+    clave: str | None = None
+    activo: bool | None = None
 
 
 class UsuarioLeer(BaseModel):
@@ -39,6 +52,7 @@ class UsuarioLeer(BaseModel):
 
     id: int
     nombre: str
+    correo: str | None
     rol: RolUsuario
     activo: bool
 
@@ -169,6 +183,17 @@ class VentaLeer(BaseModel):
 
 class PedidoCrear(BaseModel):
     mesa: int
+
+
+class PedidoEnviar(BaseModel):
+    """Un pedido completo saliendo del celular del mesero.
+
+    La mesa se ocupa en el momento en que llega esto, no antes: mientras el
+    mesero está anotando, el pedido vive solo en su teléfono.
+    """
+
+    mesa: int
+    items: list["ItemPedidoCrear"]
 
 
 class ItemPedidoCrear(BaseModel):

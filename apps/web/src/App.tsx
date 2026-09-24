@@ -41,7 +41,7 @@ export default function App() {
         }
       />
       <Route
-        path="/mesa/:id"
+        path="/mesa/:numero"
         element={
           <Protegida roles={['mesero', 'vendedor']}>
             <Mesa />

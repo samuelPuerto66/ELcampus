@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 
 import App from './App'
 import { ProveedorSesion } from './sesion'
+import './estilos/fuentes.css'
 import './estilos/global.css'
 import './estilos/pantallas.css'
 

@@ -1,7 +1,10 @@
 import jwt
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as ErrorDeStarlette
 
 from .auth import leer_token
 from .config import WEB_DIST
@@ -24,6 +27,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def control_de_cache(request: Request, call_next):
+    """Que una versión nueva llegue sin que nadie tenga que recargar a la fuerza.
+
+    Los archivos de /assets llevan un hash en el nombre: cambian de nombre
+    cuando cambia su contenido, así que se pueden guardar para siempre. El
+    index.html no, y es el que dice cuáles assets cargar — si el navegador
+    se lo queda, la caja y los celulares siguen corriendo la versión vieja
+    después de publicar un arreglo.
+    """
+    respuesta = await call_next(request)
+    ruta = request.url.path
+    if ruta.startswith("/assets/") or ruta.startswith("/fuentes/"):
+        respuesta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif not ruta.startswith("/api"):
+        respuesta.headers["Cache-Control"] = "no-cache"
+    return respuesta
+
 
 api = APIRouter(prefix="/api")
 api.include_router(auth.router)
@@ -71,3 +93,17 @@ async def eventos(websocket: WebSocket, token: str = ""):
 # un solo puerto. La caja abre localhost y los celulares la IP del PC.
 if WEB_DIST.is_dir():
     app.mount("/", StaticFiles(directory=WEB_DIST, html=True), name="web")
+
+    @app.exception_handler(ErrorDeStarlette)
+    async def entregar_index_en_rutas_de_react(request: Request, exc: ErrorDeStarlette):
+        """React Router maneja /login, /caja, /mesas, etc. en el navegador,
+        pero StaticFiles solo conoce archivos reales: si alguien recarga la
+        página o abre un acceso directo a esas rutas, sin esto el servidor
+        respondería 404 en vez de entregar la app.
+        """
+        si_no_es_de_la_api = not request.url.path.startswith("/api")
+        if exc.status_code == 404 and si_no_es_de_la_api:
+            return FileResponse(WEB_DIST / "index.html")
+        # Cualquier otro caso (401, 403, un 404 real de /api) sigue el
+        # comportamiento normal de FastAPI en vez de tumbar la respuesta.
+        return await http_exception_handler(request, exc)

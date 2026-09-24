@@ -30,6 +30,23 @@ def _cargar_secreto() -> str:
 SECRET_KEY = _cargar_secreto()
 ALGORITMO = "HS256"
 
+# Código que además de la clave tiene que escribir quien entra como
+# administrador. Es uno solo, compartido entre los administradores: una
+# puerta extra, no una identidad. Se guarda hasheado, nunca en texto plano.
+ARCHIVO_CODIGO_ADMIN = BASE_DIR / ".codigo-admin"
+
+
+def hash_del_codigo_admin() -> str | None:
+    """El hash guardado, o None si todavía nadie configuró el código."""
+    if not ARCHIVO_CODIGO_ADMIN.exists():
+        return None
+    guardado = ARCHIVO_CODIGO_ADMIN.read_text(encoding="utf-8").strip()
+    return guardado or None
+
+
+def guardar_codigo_admin(hash_nuevo: str) -> None:
+    ARCHIVO_CODIGO_ADMIN.write_text(hash_nuevo, encoding="utf-8")
+
 # Un turno completo: el vendedor entra al abrir y no tiene que volver a
 # escribir la clave a mitad de un sábado.
 HORAS_DE_SESION = 14

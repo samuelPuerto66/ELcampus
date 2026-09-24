@@ -6,16 +6,16 @@ import { useEventos } from '../api/eventos'
 import type { Pedido } from '../api/tipos'
 import { plata } from '../formato'
 import { useSesion } from '../sesion'
+import Fondo from './Fondo'
 
 // Cuántas mesas tiene el local. Cuando el negocio ponga o quite mesas,
 // se cambia este número.
-const MESAS_DEL_LOCAL = 12
+const MESAS_DEL_LOCAL = 16
 
 export default function Mesas() {
   const { sesion, salir } = useSesion()
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [abriendo, setAbriendo] = useState<number | null>(null)
   const navegar = useNavigate()
 
   const cargar = useCallback(async () => {
@@ -33,27 +33,15 @@ export default function Mesas() {
     void cargar()
   }, [cargar])
 
-  async function tocarMesa(numero: number) {
-    const abierta = pedidos.find((p) => p.mesa === numero)
-    if (abierta) {
-      navegar(`/mesa/${abierta.id}`)
-      return
-    }
-
-    setAbriendo(numero)
-    try {
-      const pedido = await api.post<Pedido>('/pedidos', { mesa: numero })
-      navegar(`/mesa/${pedido.id}`)
-    } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo abrir la mesa.')
-      void cargar()
-    } finally {
-      setAbriendo(null)
-    }
+  // Tocar una mesa solo la abre en pantalla. La mesa se ocupa de verdad
+  // cuando el mesero confirma el primer pedido, no antes.
+  function tocarMesa(numero: number) {
+    navegar(`/mesa/${numero}`)
   }
 
   return (
     <div className="celular-pantalla">
+      <Fondo />
       <header className="barra">
         <span className="marca">MESAS</span>
         <span className="der">
@@ -83,8 +71,7 @@ export default function Mesas() {
               <button
                 key={numero}
                 className={`mesa ${estado}`}
-                onClick={() => void tocarMesa(numero)}
-                disabled={abriendo === numero}
+                onClick={() => tocarMesa(numero)}
               >
                 <span className="mesa-numero">{numero}</span>
                 <span className="mesa-estado">
@@ -103,7 +90,7 @@ export default function Mesas() {
 
       <footer className="celular-pie">
         <span className="pista">
-          {sesion?.nombre} · toca una mesa libre para abrirla
+          {sesion?.nombre} · toca una mesa para tomar el pedido
         </span>
       </footer>
     </div>

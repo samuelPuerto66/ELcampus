@@ -21,6 +21,27 @@ mostrador, hablando con el servidor por `localhost`. Un solo código, una sola
 estética, y el lector de código de barras funciona igual porque se comporta
 como un teclado.
 
+## Instalarlo (solo una vez)
+
+Recién clonado no existen `backend/.venv` ni `apps/web/node_modules`, así que
+los comandos de abajo fallan hasta que se creen. Hace falta Python 3.12 y
+Node 20 o más nuevos.
+
+**Dependencias del servidor**
+
+```powershell
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\backend"
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**Dependencias de la app web**
+
+```powershell
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\apps\web"
+npm install
+```
+
 ## Levantarlo en desarrollo
 
 Hacen falta **dos terminales** de PowerShell abiertas al tiempo. No hay que
@@ -29,14 +50,14 @@ activar el entorno virtual: los comandos llaman directo a su Python.
 **Terminal 1 · Servidor**
 
 ```powershell
-cd C:\Users\samla\Desktop\ELCAMPUS\backend
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\backend"
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 **Terminal 2 · App web**
 
 ```powershell
-cd C:\Users\samla\Desktop\ELCAMPUS\apps\web
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\apps\web"
 npm run dev
 ```
 
@@ -47,7 +68,7 @@ http://127.0.0.1:8000/docs.
 datos de prueba antes de levantar el servidor:
 
 ```powershell
-cd C:\Users\samla\Desktop\ELCAMPUS\backend
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\backend"
 .\.venv\Scripts\python.exe seed.py
 ```
 
@@ -62,15 +83,20 @@ reales y borrar estos.**
 ## Pruebas
 
 ```powershell
-cd C:\Users\samla\Desktop\ELCAMPUS\backend
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\backend"
 .\.venv\Scripts\python.exe -m pytest
 ```
 
 ## En el negocio (producción)
 
-```bash
-cd apps/web && npm run build
-cd backend && .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```powershell
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\apps\web"
+npm run build
+```
+
+```powershell
+cd "C:\Users\berna\OneDrive\Desktop\EL CAMPUS\ELcampus\backend"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Compilada, la app web la entrega el mismo servidor: un solo proceso y un solo

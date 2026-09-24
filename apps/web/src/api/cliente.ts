@@ -21,7 +21,14 @@ export function borrarSesion() {
 
 export class ErrorApi extends Error {}
 
-async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+async function pedir<T>(
+  ruta: string,
+  opciones: RequestInit = {},
+  // Las peticiones de entrada no echan a nadie: el 401 de un login fallido
+  // es "te equivocaste de clave", no "se te venció la sesión". Sin esto, la
+  // pantalla se recarga y se lleva lo que la persona acababa de escribir.
+  esEntrada = false,
+): Promise<T> {
   const sesion = leerSesion()
 
   const respuesta = await fetch(`/api${ruta}`, {
@@ -33,7 +40,7 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
     },
   })
 
-  if (respuesta.status === 401) {
+  if (respuesta.status === 401 && !esEntrada) {
     borrarSesion()
     window.location.replace('/login')
     throw new ErrorApi('Tu sesión venció.')
@@ -59,11 +66,21 @@ export const api = {
   borrar: <T>(ruta: string) => pedir<T>(ruta, { method: 'DELETE' }),
 }
 
-export async function entrar(nombre: string, clave: string): Promise<Sesion> {
-  const sesion = await pedir<Sesion>('/auth/entrar', {
-    method: 'POST',
-    body: JSON.stringify({ nombre, clave }),
-  })
+/** En `nombre` puede ir el nombre de usuario o el correo: el servidor busca
+ *  por los dos. El código solo se manda cuando se entra como administrador. */
+export async function entrar(
+  nombre: string,
+  clave: string,
+  codigo?: string,
+): Promise<Sesion> {
+  const sesion = await pedir<Sesion>(
+    '/auth/entrar',
+    {
+      method: 'POST',
+      body: JSON.stringify({ nombre, clave, codigo: codigo || null }),
+    },
+    true,
+  )
   guardarSesion(sesion)
   return sesion
 }

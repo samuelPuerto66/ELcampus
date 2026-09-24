@@ -1,15 +1,23 @@
-/* Paleta sacada del logo. Cada color hace una sola cosa:
-   amarillo = acción, naranja = advertencia, rojo = destructivo,
-   verde = confirmación. Ver docs/plan.md. */
+/* Paleta sacada del logo, sobre fondo negro puro. Cada color hace una
+   sola cosa: amarillo neón = acción/marca, llama = advertencia,
+   rojo = destructivo, verde = confirmación. Ver docs/plan.md. */
 :root {
-  --ground: #12100b;
-  --surface: #1b1811;
-  --surface-2: #241f16;
-  --line: #332c20;
-  --line-soft: #2a2419;
+  --ground: #000000;
+  --surface: #131313;
+  --surface-2: #1c1c1c;
+  --line: #2e2e2e;
+  --line-soft: #202020;
 
-  --amarillo: #ffc20e;
-  --amarillo-suave: #ffd65c;
+  --neon: #ffc700;
+  --neon-calido: #ffaa00;
+  --neon-brasa: #ff5e00;
+  --neon-suave: #ffe87a;
+
+  /* Café mate para las tarjetas de mesa: totalmente opaco, para que el
+     brasero del fondo no se coma los números ni el estado. */
+  --mesa-fondo: #2a2018;
+  --mesa-borde: #3d3024;
+  --neon-glow: rgba(255, 199, 0, 0.24);
   --llama: #ff7a1a;
   --salsa: #e04b3a;
   --verde: #3bb273;
@@ -18,8 +26,8 @@
   --humo: #9a9080;
   --humo-tenue: #6e6759;
 
-  --display: 'Archivo Black', 'Arial Black', sans-serif;
-  --body: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --display: 'Space Grotesk', 'Archivo Black', 'Arial Black', sans-serif;
+  --body: 'Inter', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   --mono: 'JetBrains Mono', Consolas, monospace;
 
   color-scheme: dark;
@@ -50,7 +58,7 @@ h1,
 h2,
 h3 {
   font-family: var(--display);
-  font-weight: 400;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -61,7 +69,7 @@ button {
 
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--amarillo-suave);
+  outline: 2px solid var(--neon-suave);
   outline-offset: 2px;
 }
 
@@ -81,14 +89,15 @@ input {
 
 /* ---------------------------------------------------------- botones */
 .btn-primario {
-  background: var(--amarillo);
-  color: #12100b;
+  background: var(--neon);
+  color: var(--ground);
   border: none;
   border-radius: 5px;
   font-family: var(--display);
   font-size: 16px;
   padding: 15px;
   width: 100%;
+  box-shadow: 0 0 10px var(--neon-glow);
 }
 .btn-primario:disabled {
   opacity: 0.35;
@@ -147,19 +156,26 @@ input {
 
 /* -------------------------------------------------------- estructura */
 .barra {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 10px 16px;
-  background: #0b0a07;
+  /* Translúcida a propósito: deja ver el brasero del fondo, que es el mismo
+     en todas las pantallas. */
+  background: color-mix(in srgb, var(--ground) 72%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
   font-size: 13px;
   color: var(--humo);
 }
 .barra .marca {
   font-family: var(--display);
-  color: var(--amarillo);
+  color: var(--neon);
   font-size: 15px;
+  text-shadow: 0 0 6px var(--neon-glow);
 }
 .barra .der {
   margin-left: auto;

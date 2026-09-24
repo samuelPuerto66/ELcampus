@@ -11,6 +11,14 @@ export interface Sesion {
   rol: Rol
 }
 
+export interface Usuario {
+  id: number
+  nombre: string
+  correo: string | null
+  rol: Rol
+  activo: boolean
+}
+
 export interface Producto {
   id: number
   codigo_barras: string

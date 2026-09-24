@@ -5,6 +5,7 @@ import { useEventos } from '../api/eventos'
 import type { MetodoPago, Pedido, Producto, Venta } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import { useSesion } from '../sesion'
+import Fondo from './Fondo'
 
 interface Linea {
   clave: string
@@ -230,6 +231,7 @@ export default function Caja() {
 
   return (
     <div className="caja">
+      <Fondo />
       <header className="barra">
         <span className="marca">EL CAMPUS</span>
         <span>Caja · {sesion?.nombre}</span>

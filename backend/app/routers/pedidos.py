@@ -84,18 +84,14 @@ def abrir_mesa(
     return pedido
 
 
-@router.post("/{pedido_id}/items", response_model=schemas.PedidoLeer, status_code=201)
-async def agregar_item(
-    pedido_id: int,
-    datos: schemas.ItemPedidoCrear,
-    db: Session = Depends(get_db),
-    _: models.Usuario = Depends(salon),
-):
-    pedido = _buscar(db, pedido_id)
-    _exigir_abierto(pedido)
+def _sumar_item(
+    db: Session, pedido: models.PedidoMesa, datos: schemas.ItemPedidoCrear
+) -> None:
+    """Mete un ítem en el pedido, sin confirmar la transacción.
 
-    # Pedir lo mismo otra vez suma cantidad, salvo que lleve una nota
-    # distinta: "sin ensalada" y "con ensalada" son dos líneas distintas.
+    Pedir lo mismo otra vez suma cantidad, salvo que lleve una nota distinta:
+    "sin ensalada" y "con ensalada" son dos líneas distintas.
+    """
     existente = None
     if datos.notas is None:
         for detalle in pedido.detalles:
@@ -110,21 +106,106 @@ async def agregar_item(
 
     if existente is not None:
         existente.cantidad += datos.cantidad
-    else:
-        if datos.producto_id is not None and db.get(models.Producto, datos.producto_id) is None:
+        return
+
+    if datos.producto_id is not None and db.get(models.Producto, datos.producto_id) is None:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    if datos.plato_id is not None and db.get(models.Plato, datos.plato_id) is None:
+        raise HTTPException(status_code=404, detail="Plato no encontrado")
+
+    db.add(
+        models.DetallePedidoMesa(
+            pedido_id=pedido.id,
+            producto_id=datos.producto_id,
+            plato_id=datos.plato_id,
+            cantidad=datos.cantidad,
+            notas=datos.notas,
+        )
+    )
+
+
+@router.get("/mesa/{numero}", response_model=schemas.PedidoLeer | None)
+def pedido_de_la_mesa(
+    numero: int,
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(usuario_actual),
+):
+    """El pedido abierto de una mesa, o null si la mesa está libre.
+
+    Devuelve null en vez de 404 porque "libre" es una respuesta normal, no
+    un error: el mesero abre la mesa 7 y todavía no ha pedido nada.
+    """
+    return db.scalar(
+        select(models.PedidoMesa).where(
+            models.PedidoMesa.mesa == numero,
+            models.PedidoMesa.estado != models.EstadoPedidoMesa.pagado,
+        )
+    )
+
+
+@router.post("/enviar", response_model=schemas.PedidoLeer, status_code=201)
+async def enviar_pedido(
+    datos: schemas.PedidoEnviar,
+    db: Session = Depends(get_db),
+    mesero: models.Usuario = Depends(salon),
+):
+    """Sube de una vez lo que el mesero anotó en el celular.
+
+    Esta es la operación que ocupa la mesa. Si la mesa estaba libre se abre
+    aquí, con sus ítems ya dentro; si ya estaba ocupada, lo nuevo se suma a
+    lo que había. En ningún caso queda una mesa ocupada y vacía: o entra
+    todo, o no entra nada.
+    """
+    if not datos.items:
+        raise HTTPException(
+            status_code=400, detail="El pedido está vacío. Agrega algo antes de subirlo."
+        )
+
+    # Todo se revisa antes de crear nada. Si un ítem no existe, la mesa no
+    # llega a abrirse: es preferible que el mesero reintente a que quede una
+    # mesa ocupada con medio pedido dentro.
+    for item in datos.items:
+        if item.producto_id is not None and db.get(models.Producto, item.producto_id) is None:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
-        if datos.plato_id is not None and db.get(models.Plato, datos.plato_id) is None:
+        if item.plato_id is not None and db.get(models.Plato, item.plato_id) is None:
             raise HTTPException(status_code=404, detail="Plato no encontrado")
 
-        db.add(
-            models.DetallePedidoMesa(
-                pedido_id=pedido.id,
-                producto_id=datos.producto_id,
-                plato_id=datos.plato_id,
-                cantidad=datos.cantidad,
-                notas=datos.notas,
-            )
+    pedido = db.scalar(
+        select(models.PedidoMesa).where(
+            models.PedidoMesa.mesa == datos.mesa,
+            models.PedidoMesa.estado != models.EstadoPedidoMesa.pagado,
         )
+    )
+    es_nueva = pedido is None
+
+    if es_nueva:
+        pedido = models.PedidoMesa(mesa=datos.mesa, mesero_id=mesero.id)
+        db.add(pedido)
+        db.flush()
+
+    for item in datos.items:
+        _sumar_item(db, pedido, item)
+
+    db.commit()
+    db.refresh(pedido)
+
+    await tablero.avisar(
+        "mesa_abierta" if es_nueva else "mesa_actualizada", _resumen(pedido)
+    )
+    return pedido
+
+
+@router.post("/{pedido_id}/items", response_model=schemas.PedidoLeer, status_code=201)
+async def agregar_item(
+    pedido_id: int,
+    datos: schemas.ItemPedidoCrear,
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(salon),
+):
+    pedido = _buscar(db, pedido_id)
+    _exigir_abierto(pedido)
+
+    _sumar_item(db, pedido, datos)
 
     db.commit()
     db.refresh(pedido)

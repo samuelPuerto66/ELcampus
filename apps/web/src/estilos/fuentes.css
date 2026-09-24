@@ -1,0 +1,28 @@
+/* Tipografías del negocio, servidas desde el mismo servidor.
+   Van autohospedadas a propósito: el POS trabaja en la red local del
+   negocio y no puede quedarse sin letras porque se cayó el internet.
+   Son fuentes variables, así que un archivo cubre todos los pesos. */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fuentes/Inter.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('/fuentes/SpaceGrotesk.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url('/fuentes/JetBrainsMono.woff2') format('woff2');
+}

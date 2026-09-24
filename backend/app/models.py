@@ -60,7 +60,12 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    nombre: Mapped[str] = mapped_column(String(120))
+    nombre: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    # El correo es opcional: el mesero entra con su nombre y ya. Sirve para
+    # quien prefiera escribirlo, y se guarda siempre en minúsculas.
+    correo: Mapped[str | None] = mapped_column(
+        String(180), unique=True, index=True, default=None
+    )
     rol: Mapped[RolUsuario] = mapped_column(SAEnum(RolUsuario))
     password_hash: Mapped[str] = mapped_column(String(255))
     activo: Mapped[bool] = mapped_column(default=True)

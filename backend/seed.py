@@ -16,26 +16,20 @@ Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
-if db.query(models.Usuario).count() == 0:
-    db.add_all(
-        [
+# Uno por uno y no todos o ninguno: así, cuando aparece un rol nuevo,
+# volver a correr el seed lo agrega sin tocar los usuarios que ya existen.
+for nombre, rol in [
+    ("admin", models.RolUsuario.administrador),
+    ("vendedor", models.RolUsuario.vendedor),
+    ("mesero", models.RolUsuario.mesero),
+    ("cocina", models.RolUsuario.cocina),
+]:
+    if db.query(models.Usuario).filter_by(nombre=nombre).first() is None:
+        db.add(
             models.Usuario(
-                nombre="admin",
-                rol=models.RolUsuario.administrador,
-                password_hash=hash_password("campus123"),
-            ),
-            models.Usuario(
-                nombre="vendedor",
-                rol=models.RolUsuario.vendedor,
-                password_hash=hash_password("campus123"),
-            ),
-            models.Usuario(
-                nombre="mesero",
-                rol=models.RolUsuario.mesero,
-                password_hash=hash_password("campus123"),
-            ),
-        ]
-    )
+                nombre=nombre, rol=rol, password_hash=hash_password("campus123")
+            )
+        )
 
 if db.query(models.Producto).count() == 0:
     db.add_all(
@@ -44,6 +38,7 @@ if db.query(models.Producto).count() == 0:
                 codigo_barras="7701234567890",
                 nombre="Cerveza Aguila 330ml",
                 precio=3500,
+                costo=2300,
                 stock_actual=120,
                 categoria="cerveza",
             ),
@@ -51,6 +46,7 @@ if db.query(models.Producto).count() == 0:
                 codigo_barras="7702345678901",
                 nombre="Gaseosa Postobón 400ml",
                 precio=2500,
+                costo=1600,
                 stock_actual=60,
                 categoria="bebidas",
             ),
@@ -58,6 +54,7 @@ if db.query(models.Producto).count() == 0:
                 codigo_barras="7703456789012",
                 nombre="Papas Margarita 25g",
                 precio=2000,
+                costo=1300,
                 stock_actual=4,
                 categoria="snacks",
             ),
@@ -67,6 +64,7 @@ if db.query(models.Producto).count() == 0:
                 precio=0,
                 tipo_venta=models.TipoVenta.peso,
                 precio_por_kg=18000,
+                costo=11000,
                 stock_actual=15,
                 categoria="restaurante",
             ),
@@ -77,14 +75,22 @@ if db.query(models.Plato).count() == 0:
     hoy = date.today()
     db.add_all(
         [
-            models.Plato(nombre="Picada", precio=45000, tipo=models.TipoPlato.fijo),
             models.Plato(
-                nombre="Pechuga a la plancha", precio=25000, tipo=models.TipoPlato.fijo
+                nombre="Picada", precio=45000, tipo=models.TipoPlato.fijo, costo=18000
             ),
-            models.Plato(nombre="Morraja", precio=22000, tipo=models.TipoPlato.fijo),
+            models.Plato(
+                nombre="Pechuga a la plancha",
+                precio=25000,
+                tipo=models.TipoPlato.fijo,
+                costo=9000,
+            ),
+            models.Plato(
+                nombre="Morraja", precio=22000, tipo=models.TipoPlato.fijo, costo=9500
+            ),
             models.Plato(
                 nombre="Sancocho de gallina",
                 precio=28000,
+                costo=11000,
                 tipo=models.TipoPlato.especial,
                 activo_desde=hoy,
                 activo_hasta=hoy + timedelta(days=2),
@@ -94,7 +100,11 @@ if db.query(models.Plato).count() == 0:
 
 db.commit()
 print("Datos de prueba cargados.")
-print("Usuarios:", db.query(models.Usuario).count(), "(admin / vendedor / mesero — clave: campus123)")
+print(
+    "Usuarios:",
+    db.query(models.Usuario).count(),
+    "(admin / vendedor / mesero / cocina — clave: campus123)",
+)
 print("Productos:", db.query(models.Producto).count())
 print("Platos:", db.query(models.Plato).count())
 db.close()

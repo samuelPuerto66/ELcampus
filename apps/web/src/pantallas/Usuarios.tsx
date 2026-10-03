@@ -8,6 +8,11 @@ const ROLES: { valor: Rol; texto: string; explica: string }[] = [
   { valor: 'mesero', texto: 'Mesero', explica: 'Toma pedidos en las mesas desde el celular.' },
   { valor: 'vendedor', texto: 'Vendedor', explica: 'Cobra en la caja y maneja el inventario.' },
   {
+    valor: 'cocina',
+    texto: 'Cocina',
+    explica: 'Ve los platos que hay que preparar y los marca listos.',
+  },
+  {
     valor: 'administrador',
     texto: 'Administrador',
     explica: 'Puede todo lo anterior, más precios y usuarios. Necesita el código de acceso.',

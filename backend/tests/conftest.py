@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
@@ -52,11 +54,17 @@ def datos(db):
             rol=models.RolUsuario.mesero,
             password_hash=hash_password("clave-de-prueba"),
         ),
+        "cocina": models.Usuario(
+            nombre="cocina",
+            rol=models.RolUsuario.cocina,
+            password_hash=hash_password("clave-de-prueba"),
+        ),
     }
     cerveza = models.Producto(
         codigo_barras="7701234567890",
         nombre="Cerveza Aguila 330ml",
         precio=3500,
+        costo=2300,
         stock_actual=100,
     )
     morraja = models.Producto(
@@ -65,8 +73,11 @@ def datos(db):
         precio=0,
         tipo_venta=models.TipoVenta.peso,
         precio_por_kg=18000,
+        costo=11000,
         stock_actual=20,
     )
+    # Sin costo a propósito: sirve para probar que la utilidad avisa cuando
+    # hay líneas de las que no se sabe cuánto costaron.
     picada = models.Plato(nombre="Picada", precio=45000, tipo=models.TipoPlato.fijo)
 
     db.add_all([*usuarios.values(), cerveza, morraja, picada])
@@ -78,6 +89,24 @@ def datos(db):
         "morraja": morraja,
         "picada": picada,
     }
+
+
+@pytest.fixture(autouse=True)
+def caja_abierta(request, db, datos):
+    """Casi toda prueba vende, y vender exige un turno de caja abierto.
+
+    Las pruebas que manejan el turno ellas mismas se marcan con
+    `@pytest.mark.sin_caja` para que esto no se les adelante.
+    """
+    if "sin_caja" in request.keywords:
+        return None
+
+    turno = models.CierreCaja(
+        fecha=date.today(), base_inicial=0, usuario_id=datos["vendedor"].id
+    )
+    db.add(turno)
+    db.commit()
+    return turno
 
 
 @pytest.fixture

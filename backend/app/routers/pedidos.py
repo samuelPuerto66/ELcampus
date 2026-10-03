@@ -99,6 +99,10 @@ def _sumar_item(
                 detalle.producto_id == datos.producto_id
                 and detalle.plato_id == datos.plato_id
                 and detalle.notas is None
+                # Si la cocina ya despachó ese plato, lo que se pide ahora
+                # es un plato nuevo: sumarlo a la línea vieja lo escondería
+                # detrás de un "listo" y nadie lo prepararía.
+                and detalle.estado_cocina is models.EstadoCocina.pendiente
             )
             if mismo:
                 existente = detalle
@@ -108,10 +112,12 @@ def _sumar_item(
         existente.cantidad += datos.cantidad
         return
 
-    if datos.producto_id is not None and db.get(models.Producto, datos.producto_id) is None:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    if datos.plato_id is not None and db.get(models.Plato, datos.plato_id) is None:
-        raise HTTPException(status_code=404, detail="Plato no encontrado")
+    # El precio queda guardado aquí, con el que el cliente pidió. Si el
+    # administrador lo cambia mientras la mesa come, esta cuenta no se
+    # mueve.
+    precio = servicios.precio_de_venta_de(
+        db, producto_id=datos.producto_id, plato_id=datos.plato_id
+    )
 
     db.add(
         models.DetallePedidoMesa(
@@ -120,6 +126,7 @@ def _sumar_item(
             plato_id=datos.plato_id,
             cantidad=datos.cantidad,
             notas=datos.notas,
+            precio_unitario=precio,
         )
     )
 
@@ -274,6 +281,8 @@ async def cobrar_mesa(
     _exigir_abierto(pedido)
     if not pedido.detalles:
         raise HTTPException(status_code=400, detail="Esta mesa no tiene nada pedido.")
+
+    servicios.exigir_caja_abierta(db)
 
     venta = servicios.registrar_venta(
         db,

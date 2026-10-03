@@ -79,13 +79,36 @@ def resumen_del_dia(
         ).all()
     ]
 
+    # Costo de lo vendido: solo suma las líneas que tienen costo conocido.
+    # Las que no, se cuentan aparte para no inflar la utilidad en silencio.
+    costo, sin_costo = db.execute(
+        select(
+            func.coalesce(
+                func.sum(models.DetalleVenta.cantidad * models.DetalleVenta.costo_unitario),
+                0.0,
+            ),
+            func.count(models.DetalleVenta.id).filter(
+                models.DetalleVenta.costo_unitario.is_(None)
+            ),
+        )
+        .join(models.Venta, models.DetalleVenta.venta_id == models.Venta.id)
+        .where(*filtros)
+    ).one()
+
     total = float(total or 0.0)
+    costo = redondear_pesos(costo or 0.0)
+    utilidad = redondear_pesos(total - costo)
+
     return schemas.ResumenDia(
         fecha=dia,
         total=total,
         cantidad_ventas=cantidad,
         ticket_promedio=redondear_pesos(total / cantidad) if cantidad else 0.0,
         mesas_atendidas=mesas,
+        costo=costo,
+        utilidad=utilidad,
+        margen_porcentaje=round(utilidad / total * 100, 1) if total else None,
+        lineas_sin_costo=sin_costo,
         por_metodo=por_metodo,
         mas_vendidos=mas_vendidos,
     )

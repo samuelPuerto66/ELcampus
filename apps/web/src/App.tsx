@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Rol } from './api/tipos'
 import Admin from './pantallas/Admin'
 import Caja from './pantallas/Caja'
+import Cocina from './pantallas/Cocina'
 import Login from './pantallas/Login'
 import Mesa from './pantallas/Mesa'
 import Mesas from './pantallas/Mesas'
@@ -45,6 +46,14 @@ export default function App() {
         element={
           <Protegida roles={['mesero', 'vendedor']}>
             <Mesa />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/cocina"
+        element={
+          <Protegida roles={['cocina', 'mesero', 'vendedor']}>
+            <Cocina />
           </Protegida>
         }
       />

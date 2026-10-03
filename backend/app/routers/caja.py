@@ -12,22 +12,42 @@ router = APIRouter(prefix="/caja", tags=["caja"])
 
 
 def _turno_abierto(db: Session) -> models.CierreCaja | None:
-    return db.scalar(
-        select(models.CierreCaja).where(
-            models.CierreCaja.estado == models.EstadoCierreCaja.abierto
-        )
-    )
+    return servicios.turno_abierto(db)
 
 
-def _efectivo_del_turno(db: Session, desde: datetime) -> float:
-    total = db.scalar(
+def _efectivo_del_turno(db: Session, desde: datetime, hasta: datetime) -> float:
+    """Lo que debería haber entrado al cajón en efectivo durante el turno.
+
+    Se cuenta por el momento en que la plata se mueve, no por la fecha de la
+    venta: lo cobrado entra cuando se cobra, y lo devuelto sale cuando se
+    anula. Si se midiera solo por la fecha de la venta, anular hoy algo
+    cobrado ayer dejaría el cajón corto y el cierre reportaría un faltante
+    que en realidad es una devolución.
+    """
+    en_efectivo = models.Venta.metodo_pago == models.MetodoPago.efectivo
+
+    # Todo lo cobrado en el turno, incluso lo que después se anuló: esa
+    # plata sí entró al cajón.
+    entradas = db.scalar(
         select(func.coalesce(func.sum(models.Venta.total), 0.0)).where(
+            en_efectivo,
             models.Venta.fecha_hora >= desde,
-            models.Venta.metodo_pago == models.MetodoPago.efectivo,
-            models.Venta.anulada.is_(False),
+            models.Venta.fecha_hora <= hasta,
         )
     )
-    return float(total or 0.0)
+
+    # Todo lo devuelto durante el turno, sin importar de qué día sea la
+    # venta original.
+    salidas = db.scalar(
+        select(func.coalesce(func.sum(models.Venta.total), 0.0)).where(
+            en_efectivo,
+            models.Venta.anulada.is_(True),
+            models.Venta.anulada_en >= desde,
+            models.Venta.anulada_en <= hasta,
+        )
+    )
+
+    return float(entradas or 0.0) - float(salidas or 0.0)
 
 
 @router.get("/actual", response_model=schemas.CierreCajaLeer | None)
@@ -72,13 +92,14 @@ def cerrar_caja(
     if turno is None:
         raise HTTPException(status_code=409, detail="No hay ninguna caja abierta.")
 
+    cierre = datetime.now()
     esperado = servicios.redondear_pesos(
-        turno.base_inicial + _efectivo_del_turno(db, turno.hora_apertura)
+        turno.base_inicial + _efectivo_del_turno(db, turno.hora_apertura, cierre)
     )
     turno.efectivo_esperado = esperado
     turno.efectivo_contado = datos.efectivo_contado
     turno.diferencia = servicios.redondear_pesos(datos.efectivo_contado - esperado)
-    turno.hora_cierre = datetime.now()
+    turno.hora_cierre = cierre
     turno.estado = models.EstadoCierreCaja.cerrado
 
     db.commit()

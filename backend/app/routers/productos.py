@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..auth import caja, solo_admin, usuario_actual
+from ..catalogo_externo import buscar_nombre
 from ..database import get_db
 
 router = APIRouter(prefix="/productos", tags=["productos"])
@@ -13,10 +14,18 @@ router = APIRouter(prefix="/productos", tags=["productos"])
 def listar_productos(
     buscar: str | None = None,
     categoria: str | None = None,
+    incluir_insumos: bool = False,
     db: Session = Depends(get_db),
     _: models.Usuario = Depends(usuario_actual),
 ):
+    """Por defecto solo lo que se vende.
+
+    Los insumos de cocina se controlan en inventario pero no tienen por qué
+    aparecerle al mesero en el menú ni al vendedor en la caja.
+    """
     consulta = select(models.Producto).order_by(models.Producto.nombre)
+    if not incluir_insumos:
+        consulta = consulta.where(models.Producto.es_insumo.is_(False))
     if buscar:
         consulta = consulta.where(models.Producto.nombre.ilike(f"%{buscar}%"))
     if categoria:
@@ -37,7 +46,36 @@ def buscar_por_codigo_barras(
         raise HTTPException(
             status_code=404, detail="Ese código no está registrado todavía."
         )
+    if producto.es_insumo:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{producto.nombre} es un insumo de cocina, no se vende suelto.",
+        )
     return producto
+
+
+@router.get("/consultar/{codigo_barras}", response_model=schemas.ConsultaCodigo)
+async def consultar_codigo(
+    codigo_barras: str,
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(caja),
+):
+    """Para cargar inventario: ¿este código ya está, y cómo se llama?
+
+    Si no está registrado, se le pregunta el nombre a Open Food Facts para
+    ahorrar tecleo. Que no lo conozca es normal, no un error.
+    """
+    registrado = db.scalar(
+        select(models.Producto).where(models.Producto.codigo_barras == codigo_barras)
+    )
+    if registrado is not None:
+        return schemas.ConsultaCodigo(codigo_barras=codigo_barras, registrado=registrado)
+
+    return schemas.ConsultaCodigo(
+        codigo_barras=codigo_barras,
+        registrado=None,
+        nombre_sugerido=await buscar_nombre(codigo_barras),
+    )
 
 
 @router.get("/{producto_id}", response_model=schemas.ProductoLeer)

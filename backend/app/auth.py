@@ -66,3 +66,5 @@ def exigir_rol(*roles: RolUsuario):
 solo_admin = exigir_rol()
 caja = exigir_rol(RolUsuario.vendedor)
 salon = exigir_rol(RolUsuario.vendedor, RolUsuario.mesero)
+# El mesero también marca platos listos cuando él mismo los recoge.
+cocina = exigir_rol(RolUsuario.cocina, RolUsuario.vendedor, RolUsuario.mesero)

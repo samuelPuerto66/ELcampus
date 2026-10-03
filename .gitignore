@@ -15,3 +15,5 @@ build/
 .vite/
 *.tsbuildinfo
 .DS_Store
+respaldos/
+.codigo-admin

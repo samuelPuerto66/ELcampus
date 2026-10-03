@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, model_validator
 
 from .models import (
     EstadoCierreCaja,
+    EstadoCocina,
     EstadoPedidoMesa,
     MetodoPago,
     RolUsuario,
@@ -69,6 +70,8 @@ class ProductoBase(BaseModel):
     unidades_por_paquete: int = 1
     categoria: str | None = None
     alerta_minima: float = 5
+    costo: float | None = None
+    es_insumo: bool = False
 
 
 class ProductoCrear(ProductoBase):
@@ -81,6 +84,8 @@ class ProductoActualizar(BaseModel):
     precio_por_kg: float | None = None
     categoria: str | None = None
     alerta_minima: float | None = None
+    costo: float | None = None
+    es_insumo: bool | None = None
 
 
 class ProductoLeer(ProductoBase):
@@ -89,6 +94,14 @@ class ProductoLeer(ProductoBase):
     id: int
     stock_actual: float
     precio_de_venta: float
+
+
+class ConsultaCodigo(BaseModel):
+    """Lo que se sabe de un código antes de registrarlo."""
+
+    codigo_barras: str
+    registrado: ProductoLeer | None = None
+    nombre_sugerido: str | None = None
 
 
 # --------------------------------------------------------------- platos
@@ -100,6 +113,7 @@ class PlatoBase(BaseModel):
     tipo: TipoPlato = TipoPlato.fijo
     activo_desde: date | None = None
     activo_hasta: date | None = None
+    costo: float | None = None
 
 
 class PlatoCrear(PlatoBase):
@@ -111,12 +125,46 @@ class PlatoActualizar(BaseModel):
     precio: float | None = None
     activo_desde: date | None = None
     activo_hasta: date | None = None
+    costo: float | None = None
+
+
+class InsumoEscribir(BaseModel):
+    producto_id: int
+    cantidad: float
+
+    @model_validator(mode="after")
+    def validar(self):
+        if self.cantidad <= 0:
+            raise ValueError("La cantidad del insumo debe ser mayor que cero")
+        return self
+
+
+class InsumoLeer(BaseModel):
+    producto_id: int
+    nombre: str
+    cantidad: float
+    costo_unitario: float | None
+    costo_total: float | None
+
+
+class RecetaLeer(BaseModel):
+    plato_id: int
+    nombre: str
+    precio: float
+    insumos: list[InsumoLeer]
+    # None cuando a algún insumo le falta el costo: la receta está
+    # incompleta y el margen todavía no se puede saber.
+    costo: float | None
+    utilidad: float | None
 
 
 class PlatoLeer(PlatoBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    # El costo real: el de la receta si la tiene, el escrito a mano si no.
+    costo_efectivo: float | None = None
+    tiene_receta: bool = False
 
 
 # --------------------------------------------------------------- ventas
@@ -226,6 +274,20 @@ class DetallePedidoLeer(BaseModel):
     precio_unitario: float
     subtotal: float
     notas: str | None
+    estado_cocina: EstadoCocina
+
+
+class ItemComanda(BaseModel):
+    """Una línea como la ve la cocina: qué, cuánto, para qué mesa."""
+
+    id: int
+    pedido_id: int
+    mesa: int
+    nombre: str
+    cantidad: float
+    notas: str | None
+    estado_cocina: EstadoCocina
+    creado_en: datetime
 
 
 class PedidoLeer(BaseModel):
@@ -320,3 +382,11 @@ class ResumenDia(BaseModel):
     mesas_atendidas: int
     por_metodo: list[VentasPorMetodo]
     mas_vendidos: list[ProductoVendido]
+
+    # Lo vendido menos lo que costó comprarlo. `lineas_sin_costo` dice de
+    # cuántas líneas no se sabe el costo: mientras ese número no sea cero,
+    # la utilidad es un piso, no la cifra real.
+    costo: float
+    utilidad: float
+    margen_porcentaje: float | None
+    lineas_sin_costo: int

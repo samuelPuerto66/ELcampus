@@ -3,8 +3,22 @@ import { useEffect, useRef, useState } from 'react'
 import { leerSesion } from './cliente'
 
 export interface Aviso {
-  evento: 'cuenta_pedida' | 'mesa_actualizada' | 'mesa_cobrada'
-  datos: { pedido_id: number; mesa: number; estado?: string; total?: number; items?: number }
+  evento:
+    | 'cuenta_pedida'
+    | 'mesa_actualizada'
+    | 'mesa_abierta'
+    | 'mesa_cobrada'
+    | 'plato_listo'
+    | 'cocina_actualizada'
+  datos: {
+    pedido_id?: number
+    mesa: number
+    estado?: string
+    total?: number
+    items?: number
+    nombre?: string
+    detalle_id?: number
+  }
 }
 
 /**

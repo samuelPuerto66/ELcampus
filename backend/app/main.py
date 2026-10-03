@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 import jwt
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.exception_handlers import http_exception_handler
@@ -10,13 +12,35 @@ from .auth import leer_token
 from .config import WEB_DIST
 from .database import Base, engine
 from .eventos import tablero
-from .routers import auth, caja, inventario, pedidos, platos, productos, reportes, ventas
+from .respaldos import hacer_respaldo_si_falta
+from .routers import (
+    auth,
+    caja,
+    cocina,
+    inventario,
+    pedidos,
+    platos,
+    productos,
+    reportes,
+    ventas,
+)
 
 # Dev: crea las tablas si no existen. Las migraciones de Alembic mandan
 # cuando el esquema cambia con datos ya cargados.
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="El Campus API", version="0.2.0")
+@asynccontextmanager
+async def ciclo_de_vida(_: FastAPI):
+    # El PC de la caja se prende casi todos los días, así que respaldar al
+    # arrancar basta para tener una copia diaria sin depender de que
+    # alguien se acuerde.
+    copia = hacer_respaldo_si_falta()
+    if copia is not None:
+        print(f"Copia de seguridad del día: {copia}")
+    yield
+
+
+app = FastAPI(title="El Campus API", version="0.3.0", lifespan=ciclo_de_vida)
 
 # En producción el mismo servidor entrega la app web, así que no hay origen
 # cruzado. Esto es solo para el servidor de desarrollo de Vite.
@@ -53,6 +77,7 @@ api.include_router(productos.router)
 api.include_router(platos.router)
 api.include_router(ventas.router)
 api.include_router(pedidos.router)
+api.include_router(cocina.router)
 api.include_router(inventario.router)
 api.include_router(caja.router)
 api.include_router(reportes.router)

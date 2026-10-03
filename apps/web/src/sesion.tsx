@@ -38,6 +38,7 @@ export function useSesion() {
 /** A dónde va cada quien al entrar. */
 export function pantallaDe(rol: Rol): string {
   if (rol === 'mesero') return '/mesas'
+  if (rol === 'cocina') return '/cocina'
   if (rol === 'administrador') return '/admin'
   return '/caja'
 }

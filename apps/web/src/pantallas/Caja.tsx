@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 
 import { api } from '../api/cliente'
 import { useEventos } from '../api/eventos'
-import type { MetodoPago, Pedido, Producto, Venta } from '../api/tipos'
+import type { MetodoPago, Pedido, Producto, TurnoCaja, Venta } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import { useSesion } from '../sesion'
 import Fondo from './Fondo'
+import { AbrirCaja, CerrarCaja } from './TurnoCaja'
 
 interface Linea {
   clave: string
@@ -37,6 +38,9 @@ export default function Caja() {
   const [ultimaVenta, setUltimaVenta] = useState<Venta | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cobrando, setCobrando] = useState(false)
+  // undefined mientras se consulta; null cuando no hay turno abierto.
+  const [turno, setTurno] = useState<TurnoCaja | null | undefined>(undefined)
+  const [cerrandoTurno, setCerrandoTurno] = useState(false)
 
   const campoEscaneo = useRef<HTMLInputElement>(null)
   const campoKilos = useRef<HTMLInputElement>(null)
@@ -61,6 +65,13 @@ export default function Caja() {
   useEffect(() => {
     void cargarMesas()
   }, [cargarMesas])
+
+  useEffect(() => {
+    api
+      .get<TurnoCaja | null>('/caja/actual')
+      .then(setTurno)
+      .catch(() => setTurno(null))
+  }, [])
 
   // El campo de escaneo nunca pierde el foco: un escaneo que se pierde
   // porque el cursor estaba en otra parte es la falla número uno de una caja.
@@ -229,9 +240,21 @@ export default function Caja() {
       }))
     : lineas
 
+  if (turno === undefined) return <p className="cargando">Abriendo la caja…</p>
+  if (turno === null) return <AbrirCaja alAbrir={setTurno} />
+
   return (
     <div className="caja">
       <Fondo />
+      {cerrandoTurno && (
+        <CerrarCaja
+          alCerrar={() => {
+            setCerrandoTurno(false)
+            setTurno(null)
+          }}
+          cancelar={() => setCerrandoTurno(false)}
+        />
+      )}
       <header className="barra">
         <span className="marca">EL CAMPUS</span>
         <span>Caja · {sesion?.nombre}</span>
@@ -398,6 +421,12 @@ export default function Caja() {
         ) : (
           <span className="pista">Todavía no has cobrado nada en esta sesión.</span>
         )}
+        <span className="caja-pie-der">
+          <span className="pista">Caja abierta desde {hora(turno.hora_apertura)}</span>
+          <button className="btn-secundario btn-angosto" onClick={() => setCerrandoTurno(true)}>
+            Cerrar caja
+          </button>
+        </span>
       </footer>
     </div>
   )

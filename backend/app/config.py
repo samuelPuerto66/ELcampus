@@ -52,3 +52,13 @@ def guardar_codigo_admin(hash_nuevo: str) -> None:
 HORAS_DE_SESION = 14
 
 ALERTA_STOCK_POR_DEFECTO = 5
+
+# Cuánto tiempo tiene un vendedor para deshacer su propia última venta.
+# Pasado ese rato, anular es cosa del administrador: así un error de
+# digitación se arregla solo, pero "cobrar y anular después" deja de ser
+# una puerta abierta para que se pierda plata sin rastro.
+MINUTOS_PARA_ANULAR = 10
+
+# Copias de seguridad de la base. Una sola carpeta local, rotando por días.
+CARPETA_RESPALDOS = BASE_DIR / "respaldos"
+DIAS_DE_RESPALDO = 30

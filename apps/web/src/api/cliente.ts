@@ -63,6 +63,8 @@ export const api = {
     pedir<T>(ruta, { method: 'POST', body: JSON.stringify(datos ?? {}) }),
   patch: <T>(ruta: string, datos: unknown) =>
     pedir<T>(ruta, { method: 'PATCH', body: JSON.stringify(datos) }),
+  put: <T>(ruta: string, datos: unknown) =>
+    pedir<T>(ruta, { method: 'PUT', body: JSON.stringify(datos) }),
   borrar: <T>(ruta: string) => pedir<T>(ruta, { method: 'DELETE' }),
 }
 

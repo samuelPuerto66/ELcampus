@@ -16,6 +16,12 @@ class RolUsuario(str, enum.Enum):
     administrador = "administrador"
     vendedor = "vendedor"
     mesero = "mesero"
+    cocina = "cocina"
+
+
+class EstadoCocina(str, enum.Enum):
+    pendiente = "pendiente"
+    listo = "listo"
 
 
 class TipoVenta(str, enum.Enum):
@@ -86,6 +92,12 @@ class Producto(Base):
     stock_actual: Mapped[float] = mapped_column(default=0)
     categoria: Mapped[str | None] = mapped_column(String(100), default=None)
     alerta_minima: Mapped[float] = mapped_column(default=5)
+    # Lo que cuesta comprarlo, en la misma unidad en que se vende. Sin esto
+    # el sistema solo sabe cuánto se vendió, nunca cuánto se ganó.
+    costo: Mapped[float | None] = mapped_column(default=None)
+    # Un insumo (la carne, el chorizo) se controla en inventario pero no se
+    # vende suelto: no aparece en la caja ni en el menú del mesero.
+    es_insumo: Mapped[bool] = mapped_column(default=False)
 
     __table_args__ = (
         CheckConstraint(
@@ -111,6 +123,55 @@ class Plato(Base):
     tipo: Mapped[TipoPlato] = mapped_column(SAEnum(TipoPlato))
     activo_desde: Mapped[date | None] = mapped_column(default=None)
     activo_hasta: Mapped[date | None] = mapped_column(default=None)
+    # Costo a ojo, para platos sin receta. Si el plato tiene receta, el
+    # costo sale de sus insumos y este número se ignora.
+    costo: Mapped[float | None] = mapped_column(default=None)
+
+    insumos: Mapped[list["InsumoPlato"]] = relationship(
+        back_populates="plato", cascade="all, delete-orphan"
+    )
+
+    @property
+    def tiene_receta(self) -> bool:
+        return len(self.insumos) > 0
+
+    @property
+    def costo_efectivo(self) -> float | None:
+        """Lo que cuesta preparar el plato.
+
+        Con receta sale de los insumos; sin receta, del número que escribió
+        el administrador. Si a un insumo le falta el costo se devuelve None
+        en vez de una cifra a medias: una utilidad inventada es peor que
+        una que se declara incompleta.
+        """
+        if not self.insumos:
+            return self.costo
+
+        total = 0.0
+        for insumo in self.insumos:
+            if insumo.producto.costo is None:
+                return None
+            total += insumo.cantidad * insumo.producto.costo
+        return float(round(total))
+
+
+class InsumoPlato(Base):
+    """Qué lleva un plato y cuánto. La receta.
+
+    Es lo que permite que vender una picada descuente la carne y el
+    chorizo, y que el costo del plato se calcule solo en vez de adivinarse.
+    """
+
+    __tablename__ = "insumos_plato"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plato_id: Mapped[int] = mapped_column(ForeignKey("platos.id"))
+    producto_id: Mapped[int] = mapped_column(ForeignKey("productos.id"))
+    # En la unidad del producto: kilos si va por peso, unidades si no.
+    cantidad: Mapped[float]
+
+    plato: Mapped["Plato"] = relationship(back_populates="insumos")
+    producto: Mapped["Producto"] = relationship()
 
 
 class Venta(Base):
@@ -151,6 +212,9 @@ class DetalleVenta(Base):
     cantidad: Mapped[float]
     precio_unitario: Mapped[float]
     subtotal: Mapped[float]
+    # El costo se congela aquí al cobrar. Si mañana sube el precio de la
+    # cerveza, la utilidad de la venta de hoy no se reescribe sola.
+    costo_unitario: Mapped[float | None] = mapped_column(default=None)
 
     venta: Mapped["Venta"] = relationship(back_populates="detalles")
     producto: Mapped["Producto | None"] = relationship()
@@ -198,6 +262,16 @@ class DetallePedidoMesa(Base):
     plato_id: Mapped[int | None] = mapped_column(ForeignKey("platos.id"), default=None)
     cantidad: Mapped[float]
     notas: Mapped[str | None] = mapped_column(default=None)
+    # El precio se congela cuando el cliente pide, no se lee al cobrar: si
+    # el administrador sube un precio mientras la mesa está comiendo, esa
+    # mesa paga lo que le dijeron, no lo nuevo.
+    precio_unitario: Mapped[float]
+    # Para la pantalla de cocina. Solo aplica a los platos: una cerveza no
+    # se cocina. `creado_en` es lo que deja ver cuánto lleva esperando.
+    estado_cocina: Mapped[EstadoCocina] = mapped_column(
+        SAEnum(EstadoCocina), default=EstadoCocina.pendiente
+    )
+    creado_en: Mapped[datetime] = mapped_column(default=datetime.now)
 
     pedido: Mapped["PedidoMesa"] = relationship(back_populates="detalles")
     producto: Mapped["Producto | None"] = relationship()
@@ -206,12 +280,6 @@ class DetallePedidoMesa(Base):
     @property
     def nombre(self) -> str:
         return self.producto.nombre if self.producto is not None else self.plato.nombre
-
-    @property
-    def precio_unitario(self) -> float:
-        if self.producto is not None:
-            return self.producto.precio_de_venta
-        return self.plato.precio
 
     @property
     def subtotal(self) -> float:
@@ -235,6 +303,10 @@ class MovimientoInventario(Base):
     cantidad: Mapped[float]
     fecha: Mapped[datetime] = mapped_column(default=datetime.now)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    # De qué venta salió. Al anular, se devuelve exactamente lo que se
+    # descontó — incluidos los insumos de un plato, aunque la receta haya
+    # cambiado después.
+    venta_id: Mapped[int | None] = mapped_column(ForeignKey("ventas.id"), default=None)
 
 
 class CierreCaja(Base):

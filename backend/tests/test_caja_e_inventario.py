@@ -1,3 +1,6 @@
+import pytest
+
+
 def _cobrar_efectivo(cliente, producto_id, cantidad):
     return cliente.post(
         "/api/ventas",
@@ -9,6 +12,7 @@ def _cobrar_efectivo(cliente, producto_id, cantidad):
     ).json()
 
 
+@pytest.mark.sin_caja
 def test_cierre_de_caja_cuadra_con_lo_vendido_en_efectivo(cliente, datos):
     cliente.post("/api/caja/abrir", json={"base_inicial": 100000})
     _cobrar_efectivo(cliente, datos["cerveza"].id, 3)  # 10.500
@@ -20,6 +24,7 @@ def test_cierre_de_caja_cuadra_con_lo_vendido_en_efectivo(cliente, datos):
     assert cierre["estado"] == "cerrado"
 
 
+@pytest.mark.sin_caja
 def test_un_faltante_queda_registrado_tal_cual(cliente, datos):
     cliente.post("/api/caja/abrir", json={"base_inicial": 100000})
     _cobrar_efectivo(cliente, datos["cerveza"].id, 2)  # 7.000
@@ -30,6 +35,7 @@ def test_un_faltante_queda_registrado_tal_cual(cliente, datos):
     assert cierre["diferencia"] == -2000
 
 
+@pytest.mark.sin_caja
 def test_las_ventas_por_nequi_no_entran_al_cuadre_de_efectivo(cliente, datos):
     cliente.post("/api/caja/abrir", json={"base_inicial": 50000})
     cliente.post(
@@ -47,6 +53,7 @@ def test_las_ventas_por_nequi_no_entran_al_cuadre_de_efectivo(cliente, datos):
     assert cierre["diferencia"] == 0
 
 
+@pytest.mark.sin_caja
 def test_no_se_abren_dos_cajas_al_tiempo(cliente):
     cliente.post("/api/caja/abrir", json={"base_inicial": 50000})
     segunda = cliente.post("/api/caja/abrir", json={"base_inicial": 50000})

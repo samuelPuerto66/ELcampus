@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { api } from '../api/cliente'
+import { useEventos } from '../api/eventos'
 import type { Pedido, Plato, Producto } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import Fondo from './Fondo'
@@ -71,6 +72,13 @@ export default function Mesa() {
     void api.get<Plato[]>('/platos').then(setPlatos).catch(() => undefined)
     void api.get<Producto[]>('/productos').then(setProductos).catch(() => undefined)
   }, [cargar])
+
+  // Cuando la cocina marca un plato listo, el mesero lo ve sin refrescar.
+  useEventos((aviso) => {
+    if (aviso.evento === 'plato_listo' && aviso.datos.mesa === Number(numero)) {
+      void cargar()
+    }
+  })
 
   useEffect(() => {
     guardarBorrador(numero, borrador)
@@ -200,6 +208,9 @@ export default function Mesa() {
               <div key={detalle.id} className="item-pedido enviado">
                 <span className="item-nombre">
                   {detalle.nombre}
+                  {detalle.plato_id !== null && detalle.estado_cocina === 'listo' && (
+                    <span className="chip-listo">Listo para recoger</span>
+                  )}
                   <small className="num">
                     {plata(detalle.precio_unitario)}
                     {detalle.notas ? ` · ${detalle.notas}` : ''}

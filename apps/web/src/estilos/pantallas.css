@@ -1372,3 +1372,365 @@ td.vacio {
     border-bottom: 1px solid var(--line);
   }
 }
+
+/* ========================================================= turno de caja */
+.turno-panel {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 28px;
+  position: relative;
+  z-index: 1;
+}
+.turno-panel h2 {
+  font-family: var(--display);
+  font-size: 24px;
+  color: var(--neon);
+  margin: 0;
+}
+.turno-panel .campo input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 22px;
+  text-align: right;
+}
+.turno-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.82);
+}
+.turno-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 15px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.turno-fila .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.caja-pie-der {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.btn-angosto {
+  width: auto;
+  padding: 7px 15px;
+  font-size: 13px;
+}
+
+/* ================================================= utilidad en el admin */
+.utilidad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.utilidad .tile-valor.positivo {
+  color: var(--verde);
+}
+.utilidad .tile-valor.negativo {
+  color: var(--salsa);
+}
+.aviso-costo {
+  font-size: 12px;
+  color: var(--llama);
+  line-height: 1.4;
+}
+
+/* ================================================ catálogo de costos */
+.fila-costo {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-soft);
+  align-items: center;
+}
+.fila-costo-nombre {
+  font-size: 15px;
+  line-height: 1.3;
+}
+.fila-costo-nombre small {
+  display: block;
+  color: var(--humo-tenue);
+  font-size: 12px;
+}
+.fila-costo-margen {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.fila-costo-margen b {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.fila-costo-margen small {
+  font-size: 11px;
+  color: var(--humo-tenue);
+}
+.deja-bien {
+  color: var(--verde);
+}
+.deja-mal {
+  color: var(--salsa);
+}
+.sin-dato {
+  color: var(--llama);
+  font-size: 12px;
+}
+.fila-costo-editar {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.fila-costo-editar input {
+  flex: 1;
+  max-width: 160px;
+  text-align: right;
+  font-family: var(--mono);
+  padding: 8px 10px;
+}
+
+/* ============================================================= cocina */
+.cocina {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.cocina-mesas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  align-content: start;
+}
+.comanda {
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--neon);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow: hidden;
+}
+/* La urgencia se tiene que leer de lejos, con las manos ocupadas. */
+.comanda.apurado {
+  border-left-color: var(--llama);
+}
+.comanda.tarde {
+  border-left-color: var(--salsa);
+  box-shadow: 0 0 0 1px rgba(224, 75, 58, 0.35);
+}
+.comanda-cabeza {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.comanda-mesa {
+  font-family: var(--display);
+  font-size: 22px;
+  color: var(--neon);
+}
+.comanda-espera {
+  font-size: 13px;
+  color: var(--humo);
+  font-variant-numeric: tabular-nums;
+}
+.comanda.apurado .comanda-espera {
+  color: var(--llama);
+}
+.comanda.tarde .comanda-espera {
+  color: var(--salsa);
+  font-weight: 700;
+}
+.comanda-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  color: var(--espuma);
+}
+.comanda-item:last-child {
+  border-bottom: none;
+}
+.comanda-item:hover,
+.comanda-item:focus-visible {
+  background: rgba(255, 199, 0, 0.07);
+}
+.comanda-cantidad {
+  font-family: var(--display);
+  font-size: 21px;
+  min-width: 30px;
+  color: var(--neon);
+  font-variant-numeric: tabular-nums;
+}
+.comanda-nombre {
+  font-size: 17px;
+  line-height: 1.25;
+}
+.comanda-nombre small {
+  display: block;
+  color: var(--llama);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.comanda-listo {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--verde);
+  border: 1px solid rgba(59, 178, 115, 0.45);
+  border-radius: 4px;
+  padding: 7px 11px;
+  white-space: nowrap;
+}
+.cocina-vacia {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--humo);
+  padding: 40px;
+  text-align: center;
+}
+.cocina-vacia-icono {
+  font-size: 44px;
+  opacity: 0.5;
+}
+
+.chip-listo {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--verde);
+  border: 1px solid rgba(59, 178, 115, 0.45);
+  background: rgba(59, 178, 115, 0.1);
+  border-radius: 3px;
+  padding: 2px 7px;
+  vertical-align: middle;
+}
+
+/* ================================================== alta de productos */
+.alta-producto {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: var(--surface-2);
+}
+.alta-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+.alta-producto .campo input {
+  width: 100%;
+}
+
+/* ============================================================ recetas */
+.fila-costo-receta {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+.receta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--neon);
+  border-radius: 6px;
+  padding: 16px;
+  background: var(--surface-2);
+}
+.receta-linea {
+  display: grid;
+  grid-template-columns: 1fr 90px auto auto;
+  gap: 10px;
+  align-items: center;
+}
+.receta-nombre {
+  font-size: 14px;
+}
+.receta-linea input {
+  width: 100%;
+  text-align: right;
+  padding: 7px 9px;
+  font-family: var(--mono);
+}
+.receta-unidad {
+  font-size: 12px;
+  color: var(--humo-tenue);
+  min-width: 26px;
+}
+.receta-agregar {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--espuma);
+  padding: 10px 12px;
+  font-family: var(--body);
+  font-size: 14px;
+}
+.receta-resumen {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.receta-resumen b {
+  font-family: var(--mono);
+}
+.receta-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--humo-tenue);
+}
+.casilla {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--humo);
+  line-height: 1.4;
+}
+.casilla input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}

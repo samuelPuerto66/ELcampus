@@ -68,6 +68,85 @@ def actualizar_plato(
     return plato
 
 
+def _receta(plato: models.Plato) -> schemas.RecetaLeer:
+    costo = plato.costo_efectivo
+    return schemas.RecetaLeer(
+        plato_id=plato.id,
+        nombre=plato.nombre,
+        precio=plato.precio,
+        insumos=[
+            schemas.InsumoLeer(
+                producto_id=insumo.producto_id,
+                nombre=insumo.producto.nombre,
+                cantidad=insumo.cantidad,
+                costo_unitario=insumo.producto.costo,
+                costo_total=(
+                    None
+                    if insumo.producto.costo is None
+                    else float(round(insumo.cantidad * insumo.producto.costo))
+                ),
+            )
+            for insumo in plato.insumos
+        ],
+        costo=costo,
+        utilidad=None if costo is None else float(round(plato.precio - costo)),
+    )
+
+
+@router.get("/{plato_id}/receta", response_model=schemas.RecetaLeer)
+def ver_receta(
+    plato_id: int,
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(usuario_actual),
+):
+    plato = db.get(models.Plato, plato_id)
+    if plato is None:
+        raise HTTPException(status_code=404, detail="Plato no encontrado")
+    return _receta(plato)
+
+
+@router.put("/{plato_id}/receta", response_model=schemas.RecetaLeer)
+def guardar_receta(
+    plato_id: int,
+    insumos: list[schemas.InsumoEscribir],
+    db: Session = Depends(get_db),
+    _: models.Usuario = Depends(solo_admin),
+):
+    """Reemplaza la receta completa. Mandar una lista vacía la quita.
+
+    Desde que un plato tiene receta, venderlo descuenta sus insumos del
+    inventario y su costo deja de ser un estimado.
+    """
+    plato = db.get(models.Plato, plato_id)
+    if plato is None:
+        raise HTTPException(status_code=404, detail="Plato no encontrado")
+
+    vistos = set()
+    for insumo in insumos:
+        producto = db.get(models.Producto, insumo.producto_id)
+        if producto is None:
+            raise HTTPException(
+                status_code=404, detail=f"Producto {insumo.producto_id} no encontrado"
+            )
+        if insumo.producto_id in vistos:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{producto.nombre} está dos veces en la receta.",
+            )
+        vistos.add(insumo.producto_id)
+
+    plato.insumos.clear()
+    db.flush()
+    for insumo in insumos:
+        plato.insumos.append(
+            models.InsumoPlato(producto_id=insumo.producto_id, cantidad=insumo.cantidad)
+        )
+
+    db.commit()
+    db.refresh(plato)
+    return _receta(plato)
+
+
 @router.delete("/{plato_id}", status_code=204)
 def borrar_plato(
     plato_id: int,

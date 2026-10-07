@@ -26,78 +26,79 @@ como un teclado.
 > bloque empieza desde ahí, así que funcionan sin importar dónde hayas
 > clonado el proyecto.
 
-## Instalarlo (solo la primera vez)
+## Prenderlo
 
-Recién clonado no existen `backend/.venv` ni `apps/web/node_modules`, así que
-nada arranca hasta crearlos. Hace falta **Python 3.12** y **Node 20** o más
-nuevos.
-
-**1 · Dependencias del servidor**
+Hace falta tener instalados **Python 3.12** y **Node 20**, o más nuevos. Con
+eso, en **una sola terminal** parada en la carpeta del repositorio:
 
 ```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+npm start
 ```
 
-**2 · Dependencias de la app web**
+Eso es todo, también recién clonado y después de cada `git pull`. El comando
+hace en orden lo que antes eran varios pasos a mano, cada uno solo cuando
+hace falta:
 
-```powershell
-cd apps\web
-npm install
-```
+1. Revisa que no haya otro El Campus prendido.
+2. Instala las dependencias de Python y de Node si faltan o si alguien
+   agregó una nueva. La primera vez tarda unos minutos; después, segundos.
+3. Si no hay base, la crea con datos de prueba. Si ya hay, la pone al día
+   con `migrar.py`, sin borrar nada.
+4. Si no hay código de administrador, pregunta si lo quieres poner.
+5. Prende el servidor y la app web en esa misma terminal, abre el navegador
+   y muestra la dirección para los celulares.
 
-**3 · Crear la base con datos de prueba**
+**Ctrl+C** apaga todo junto. Si cambias el código no hace falta reiniciar:
+el servidor y la app se recargan solos.
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe seed.py
-```
+Los usuarios de prueba son `admin`, `vendedor`, `mesero` y `cocina`, todos
+con clave `campus123`. **Antes de usarlo en el negocio hay que crear los
+usuarios reales y borrar estos.**
 
-Crea cuatro usuarios de desarrollo — `admin`, `vendedor`, `mesero` y `cocina`, todos con
-clave `campus123`. **Antes de usarlo en el negocio hay que crear los usuarios
-reales y borrar estos.**
+Todo lo que hace está en [`iniciar.mjs`](iniciar.mjs), explicado paso por
+paso. Para prenderlo sin que abra el navegador: `npm start -- --sin-navegador`.
 
-**4 · Poner el código de administrador** ← obligatorio
+### El código de administrador
+
+Las cuentas de administrador necesitan, además de su clave, un código
+compartido entre los administradores. **Sin él nadie puede entrar como
+admin:** el servidor responde "El código de administrador no está
+configurado". `npm start` lo pregunta mientras falte. Para ponerlo o
+cambiarlo aparte:
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe codigo_admin.py
 ```
 
-Las cuentas de administrador necesitan, además de su clave, un código
-compartido entre los administradores. **Sin este paso nadie puede entrar como
-admin:** el servidor responde "El código de administrador no está
-configurado". El script lo pide por teclado (no se ve al escribir), lo pide
-dos veces para confirmar, y guarda solo el hash en `backend/.codigo-admin`,
-que está fuera del repositorio. Si se olvida, se vuelve a correr y se pone
-uno nuevo.
+Lo pide por teclado (no se ve al escribir), dos veces para confirmar, y
+guarda solo el hash en `backend/.codigo-admin`, que está fuera del
+repositorio. Si se olvida, se vuelve a correr y se pone uno nuevo.
 
 Los vendedores y meseros no necesitan código: entran solo con nombre (o
 correo) y clave.
 
-## Levantarlo en desarrollo
+### Desde los celulares
 
-Hacen falta **dos terminales** de PowerShell abiertas al tiempo, cada una
-parada en la carpeta del repositorio. No hay que activar el entorno virtual:
-los comandos llaman directo a su Python.
+Con el celular en el mismo WiFi que el PC, abre la dirección que `npm start`
+muestra en "En los celulares" (algo como `http://192.168.1.20:5173`). La
+primera vez, Windows puede preguntar si deja pasar a Node.js: dale permitir
+en **redes privadas**, o el celular no carga.
 
-**Terminal 1 · Servidor**
+### A mano, por partes
+
+Si hace falta prender cada parte por su lado (por ejemplo, para ver el
+registro completo del servidor, que `npm start` resume), son dos terminales:
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-**Terminal 2 · App web**
-
 ```powershell
 cd apps\web
 npm run dev
 ```
-
-Luego abre http://localhost:5173. La documentación de la API queda en
-http://127.0.0.1:8000/docs.
 
 > En Windows PowerShell 5.1 el `&&` no existe: cada comando va en su propia
 > línea. Y si VS Code intenta activar el entorno virtual solo y sale un error
@@ -283,9 +284,13 @@ resumen del día avisa que la utilidad que muestra es mayor que la real.
 
 ## Después de traer cambios nuevos (`git pull`)
 
+`npm start` ya lo hace solo: instala las dependencias nuevas y pone la base
+al día. Lo de abajo es por si hace falta entenderlo o hacerlo a mano.
+
 Si el esquema de la base cambió, la base que ya tienes en el disco **no se
 actualiza sola**: `create_all` crea tablas nuevas pero no agrega columnas a
-las que ya existen. Para ponerla al día sin perder lo que tiene dentro:
+las que ya existen. Para eso está `migrar.py`, que la pone al día sin perder
+lo que tiene dentro:
 
 ```powershell
 cd backend
@@ -293,12 +298,9 @@ cd backend
 ```
 
 Se puede correr las veces que haga falta: cada paso mira primero si ya está
-hecho, y si no hay nada que cambiar lo dice y no toca nada. Si te saltas este
-paso después de un cambio de esquema, la app falla al leer columnas que
-todavía no existen.
-
-Vale la pena correr también `pip install -r requirements.txt` y `npm install`
-por si entraron dependencias nuevas.
+hecho, y si no hay nada que cambiar lo dice y no toca nada. Si la base no se
+pone al día después de un cambio de esquema, la app falla al leer columnas
+que todavía no existen.
 
 ## Pruebas
 
@@ -326,15 +328,30 @@ puerto abierto a internet.
 
 ## Si algo falla
 
-**`WinError 10013` al levantar el servidor** — el puerto 8000 ya está ocupado,
-casi siempre por otra instancia que quedó corriendo. Para ver quién lo tiene:
+**"El puerto 8000 ya está ocupado"** (o `WinError 10013`, o el 5173) — casi
+siempre es otro El Campus que quedó prendido en otra terminal: apágalo allá
+con Ctrl+C. Para ver quién tiene el puerto:
 
 ```powershell
 Get-NetTCPConnection -LocalPort 8000 -State Listen
 ```
 
-**"El código de administrador no está configurado"** — falta el paso 4 de la
-instalación.
+**`npm start` dice que la ejecución de scripts está deshabilitada** — es
+PowerShell bloqueando a npm, no un problema del proyecto. Corre lo mismo sin
+pasar por npm:
+
+```powershell
+node iniciar.mjs
+```
+
+**El celular no carga la página** — revisa que esté en el mismo WiFi que el
+PC y que Windows deje pasar a Node.js en redes privadas (Firewall de Windows
+→ Permitir una aplicación).
+
+**"El código de administrador no está configurado"** — falta ponerlo: vuelve
+a correr `npm start` y responde que sí cuando lo pregunte (ver "El código de
+administrador", arriba).
 
 **La app carga pero falla al entrar o al leer usuarios** — es probable que la
-base esté desactualizada. Corre `migrar.py`.
+base esté desactualizada. Apaga y vuelve a correr `npm start`, que la pone al
+día; si sigue fallando, mira el error que muestra `migrar.py` al arrancar.

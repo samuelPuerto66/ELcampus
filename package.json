@@ -1,0 +1,11 @@
+{
+  "name": "elcampus",
+  "private": true,
+  "description": "Caja, inventario y pedidos de El Campus. Para prender todo: npm start",
+  "scripts": {
+    "start": "node iniciar.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

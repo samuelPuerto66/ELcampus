@@ -1,12 +1,18 @@
-fastapi
-uvicorn[standard]
-sqlalchemy>=2.0
-alembic
-pydantic
-email-validator
-bcrypt
-pyjwt
-python-multipart
-websockets
-pytest
-httpx
+# Versiones fijas: así quien clone el proyecto instala exactamente las mismas
+# con las que pasan las pruebas, y no la última que haya salido ese día (una
+# versión nueva de bcrypt ya rompió el proyecto una vez).
+#
+# Para actualizar una: cambia el número, corre las pruebas y, si pasan, haz
+# commit. npm start instala el cambio solo en cada PC.
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.2
+alembic==1.20.0
+pydantic==2.13.5
+email-validator==2.3.0
+bcrypt==5.0.0
+pyjwt==2.15.1
+python-multipart==0.0.32
+websockets==17.1
+pytest==9.1.1
+httpx==0.28.1

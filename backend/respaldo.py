@@ -14,11 +14,11 @@ carpeta de respaldos también se sincronice a una nube.
 import sys
 
 from app.config import CARPETA_RESPALDOS, DIAS_DE_RESPALDO
-from app.respaldos import borrar_viejas, copiar, respaldo_del_dia
+from app.respaldos import borrar_viejas, copiar, respaldo_manual
 
 
 def main() -> int:
-    destino = respaldo_del_dia()
+    destino = respaldo_manual()
     bytes_copiados = copiar(destino)
     print(f"Copia guardada en {destino} ({bytes_copiados / 1024:.0f} KB)")
 

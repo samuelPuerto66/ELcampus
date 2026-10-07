@@ -50,7 +50,7 @@ def test_si_el_servicio_externo_no_responde_se_sigue_trabajando(cliente, sin_int
     assert cuerpo["nombre_sugerido"] is None
 
 
-def test_cargar_un_producto_nuevo_queda_listo_para_vender(cliente, con_sugerencia):
+def test_cargar_un_producto_nuevo_queda_listo_para_vender(cliente, con_sugerencia, ver_resumen):
     consulta = cliente.get("/api/productos/consultar/5449000000996").json()
 
     creado = cliente.post(
@@ -79,7 +79,7 @@ def test_cargar_un_producto_nuevo_queda_listo_para_vender(cliente, con_sugerenci
     ).json()
     assert venta["total"] == 6000
 
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
     assert resumen["utilidad"] == 2200
     assert resumen["lineas_sin_costo"] == 0
 

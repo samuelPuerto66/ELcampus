@@ -10,12 +10,12 @@ plan de trabajo por fases (documento vivo).
 
 ```
 backend/     API en FastAPI + SQLite. Una sola fuente de verdad.
-apps/web/    App en React. Las tres pantallas viven aquí:
-             caja (PC), mesas (celular del mesero) y admin.
+apps/web/    App en React. Todas las pantallas viven aquí:
+             caja (PC), mesas (celular del mesero), cocina y admin.
 docs/        Plan técnico.
 ```
 
-Las tres pantallas son **una sola aplicación web**. La caja no es una app
+Todas las pantallas son **una sola aplicación web**. La caja no es una app
 aparte: es el navegador en pantalla completa (modo kiosco) en el PC del
 mostrador, hablando con el servidor por `localhost`. Un solo código, una sola
 estética, y el lector de código de barras funciona igual porque se comporta
@@ -54,7 +54,7 @@ cd backend
 .\.venv\Scripts\python.exe seed.py
 ```
 
-Crea tres usuarios de desarrollo — `admin`, `vendedor` y `mesero`, todos con
+Crea cuatro usuarios de desarrollo — `admin`, `vendedor`, `mesero` y `cocina`, todos con
 clave `campus123`. **Antes de usarlo en el negocio hay que crear los usuarios
 reales y borrar estos.**
 
@@ -122,6 +122,22 @@ conviene que todo el equipo las conozca.
   de donde sale la plata.
 - **El precio se congela cuando el cliente pide.** Subir un precio con mesas
   abiertas no cambia lo que esas mesas van a pagar.
+- **La caja no cobra una mesa que cambió.** Si el mesero agrega algo
+  mientras el cajero le lee la cuenta al cliente, la caja lo muestra y el
+  servidor no deja cobrar la cifra vieja.
+- **Pagos divididos.** Mitad efectivo y mitad Nequi se registra como dos
+  pagos que tienen que sumar exacto la cuenta. El cierre de caja solo
+  espera la parte en efectivo.
+- **La propina es de los empleados.** Se registra aparte: no cuenta como
+  venta ni como utilidad, pero si la dan en efectivo sí está en el cajón.
+  Es voluntaria, así que la caja nunca la pone sola: el cajero pregunta.
+- **Todo descuento lleva motivo.** Hasta el 10% de la cuenta lo da el
+  vendedor solo; más que eso, o una cortesía completa, necesita el código de
+  un administrador. El dueño ve cada descuento y cada anulación en el
+  resumen, con quién lo hizo y por qué.
+- **Las cifras se escriben como siempre.** "350.000" son trescientos
+  cincuenta mil. Antes el sistema lo leía como 350, y un cierre de caja
+  podía reportar un faltante que no existía.
 
 ## Copias de seguridad
 
@@ -133,9 +149,31 @@ cd backend
 .\.venv\Scripts\python.exe respaldo.py
 ```
 
+Mientras el servidor esté prendido, revisa cada hora si ya está la copia
+del día; así hay copia diaria aunque el PC pase semanas sin apagarse.
+
+La copia a mano lleva la hora en el nombre (`elcampus-2026-10-06-182700.db`)
+para no pisar la copia automática del día: si alguien la hace cuando el daño
+ya está hecho, la copia buena de la mañana sigue ahí.
+
 Esto guarda en el mismo computador: protege contra un borrado o un archivo
 dañado, **no contra un robo o un incendio**. Vale la pena sincronizar la
 carpeta `respaldos/` a una nube.
+
+## Si se cae el WiFi del local
+
+El mesero puede seguir trabajando. Lo que confirma queda guardado en el
+celular y aparece en naranja como "Esperando señal"; cuando vuelve la red se
+envía solo, sin que nadie toque nada. Cada pedido lleva su propia clave, así
+que si la señal se corta justo después de enviarlo y el celular lo reintenta,
+el servidor lo reconoce y no lo cuenta dos veces.
+
+El menú también queda guardado en el celular, así que una mesa se puede
+atender aunque se abra sin señal. Lo único que no funciona sin red es
+pedir la cuenta: la caja tiene que estar enterada.
+
+Si la caja rechaza un pedido (por ejemplo, un plato que ya no existe), el
+mesero lo ve en rojo en esa mesa y puede volver a anotarlo o descartarlo.
 
 ## La cocina
 
@@ -149,6 +187,62 @@ cliente pide la cuenta. Las bebidas no aparecen: una cerveza no se cocina.
 
 El borde de cada mesa cambia de color con la espera — amarillo, naranja a
 los 10 minutos, rojo a los 20 — para que se vea de lejos qué está demorado.
+
+**Notas para la cocina.** Cada plato anotado tiene un botón "+ Nota" con
+las más comunes a un toque ("Sin cebolla", "Bien asado"). Si la línea tiene
+varios platos, el mesero escoge si la nota es para todos o "solo para 1":
+así quedan "dos picadas, una sin cebolla". La lista de notas rápidas está
+en `NotaDelPlato.tsx`.
+
+## Corregir lo que ya se envió
+
+Si el mesero mandó 3 cervezas y eran 2, toca **Corregir** en esa línea,
+escoge cuántas quitar y por qué. Las reglas son las mismas que para anular
+una venta:
+
+- **Lo propio y recién enviado** (menos de 5 minutos) se corrige solo.
+- **Lo que envió otra persona, lo que lleva más rato, o un plato que la
+  cocina ya preparó**, necesita el código de un administrador.
+- **Siempre queda escrito**: qué, cuánto, de qué mesa, quién y por qué. El
+  dueño lo ve en "Para revisar hoy".
+
+La caja también puede corregir la mesa que está cobrando, con el mismo
+diálogo. No hay ninguna otra forma de bajar la cuenta de una mesa.
+
+## Platos para llevar
+
+En la caja, el botón **Platos** muestra el menú para vender sin abrir una
+mesa. Al cobrar, los platos van solos a la cocina como "Para llevar", con
+el nombre del cliente si se escribió, y cuando la cocina los marca listos
+la caja avisa a quién hay que llamar. Si se anula la venta, la cocina deja
+de verlos.
+
+## Fiado
+
+El cuaderno de fiados del negocio, en la pestaña **Fiado** del
+administrador y en el botón **Fiados** de la caja.
+
+- **A quién se le fía lo decide el dueño.** Solo el administrador registra
+  clientes y les pone cupo (hasta cuánto pueden deber). Sin cupo no hay
+  límite; lo prudente es ponerle uno.
+- **Vender fiado** es cobrar en la caja con "Fiado" como forma de pago y
+  escoger al cliente. También se puede pagar una parte y fiar el resto, con
+  el pago dividido. La caja no deja pasar del cupo.
+- **Los abonos** se reciben en la caja. Si son en efectivo entran al cuadre
+  del turno, igual que una venta. Un abono mal registrado solo lo anula un
+  administrador.
+- **Lo que debe cada cliente no se guarda: se calcula** sumando lo fiado y
+  restando lo abonado. Si se anula una venta fiada, la deuda baja sola.
+
+El resumen del día muestra lo fiado hoy, lo abonado hoy y cuánto le deben
+al negocio en total. Lo fiado no aparece en "Cómo entró la plata", porque
+no entró.
+
+## Facturación electrónica
+
+Todavía no está programada, a propósito: antes hay que saber si el negocio
+está obligado y cómo. Las preguntas para el contador y lo que cambiaría en
+el sistema están en [`docs/facturacion-dian.md`](docs/facturacion-dian.md).
 
 ## Cargar el inventario
 

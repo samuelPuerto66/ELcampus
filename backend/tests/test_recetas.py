@@ -93,7 +93,7 @@ def test_vender_el_plato_descuenta_la_carne_y_el_chorizo(
 
 
 def test_la_utilidad_del_dia_usa_el_costo_de_la_receta(
-    cliente, como, datos, carne, chorizo
+    cliente, como, datos, carne, chorizo, ver_resumen
 ):
     _poner_receta(
         como("admin"),
@@ -105,7 +105,7 @@ def test_la_utilidad_del_dia_usa_el_costo_de_la_receta(
     )
 
     _cobrar_plato(cliente, datos["picada"].id)
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
 
     assert resumen["total"] == 45000
     assert resumen["costo"] == 15200

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas, servicios
 from ..auth import caja, salon, usuario_actual
+from ..config import MINUTOS_PARA_CORREGIR
 from ..database import get_db
 from ..eventos import tablero
 
@@ -85,12 +86,15 @@ def abrir_mesa(
 
 
 def _sumar_item(
-    db: Session, pedido: models.PedidoMesa, datos: schemas.ItemPedidoCrear
+    db: Session,
+    pedido: models.PedidoMesa,
+    datos: schemas.ItemPedidoCrear,
+    quien: models.Usuario,
 ) -> None:
     """Mete un ítem en el pedido, sin confirmar la transacción.
 
-    Pedir lo mismo otra vez suma cantidad, salvo que lleve una nota distinta:
-    "sin ensalada" y "con ensalada" son dos líneas distintas.
+    Pedir lo mismo otra vez suma cantidad, salvo que lleve una nota: "sin
+    cebolla" va siempre en su propia línea, para que la cocina la vea.
     """
     existente = None
     if datos.notas is None:
@@ -110,6 +114,8 @@ def _sumar_item(
 
     if existente is not None:
         existente.cantidad += datos.cantidad
+        existente.agregado_por_id = quien.id
+        existente.actualizado_en = datetime.now()
         return
 
     # El precio queda guardado aquí, con el que el cliente pidió. Si el
@@ -127,9 +133,44 @@ def _sumar_item(
             cantidad=datos.cantidad,
             notas=datos.notas,
             precio_unitario=precio,
+            agregado_por_id=quien.id,
+            actualizado_en=datetime.now(),
         )
     )
 
+
+def _autorizar_correccion(
+    detalle: models.DetallePedidoMesa, usuario: models.Usuario, codigo: str | None
+) -> bool:
+    """Decide si alguien puede quitar algo ya enviado. Devuelve si hizo
+    falta el código del administrador.
+
+    Corregir un error propio recién cometido no necesita a nadie: el mesero
+    puso 3 cervezas y eran 2, y lo nota enseguida. Todo lo demás sí: lo que
+    envió otra persona, lo que lleva rato en la cuenta, y un plato que la
+    cocina ya preparó (quitarlo es botar comida).
+    """
+    if usuario.rol is models.RolUsuario.administrador:
+        return False
+
+    desde = detalle.actualizado_en or detalle.creado_en
+    es_propio = detalle.agregado_por_id == usuario.id
+    es_reciente = datetime.now() - desde <= timedelta(minutes=MINUTOS_PARA_CORREGIR)
+    ya_cocinado = (
+        detalle.plato_id is not None
+        and detalle.estado_cocina is models.EstadoCocina.listo
+    )
+    if es_propio and es_reciente and not ya_cocinado:
+        return False
+
+    if ya_cocinado:
+        que = "Quitar un plato que la cocina ya preparó"
+    elif not es_propio:
+        que = "Quitar algo que envió otra persona"
+    else:
+        que = f"Corregir algo enviado hace más de {MINUTOS_PARA_CORREGIR} minutos"
+    servicios.exigir_codigo_admin(codigo, que_se_quiere=que)
+    return True
 
 @router.get("/mesa/{numero}", response_model=schemas.PedidoLeer | None)
 def pedido_de_la_mesa(
@@ -163,6 +204,13 @@ async def enviar_pedido(
     lo que había. En ningún caso queda una mesa ocupada y vacía: o entra
     todo, o no entra nada.
     """
+    if datos.clave is not None:
+        ya_llego = db.get(models.EnvioMesa, datos.clave)
+        if ya_llego is not None:
+            # Es un reintento de algo que ya entró: se devuelve la mesa como
+            # está, sin volver a sumar nada.
+            return _buscar(db, ya_llego.pedido_id)
+
     if not datos.items:
         raise HTTPException(
             status_code=400, detail="El pedido está vacío. Agrega algo antes de subirlo."
@@ -172,10 +220,9 @@ async def enviar_pedido(
     # llega a abrirse: es preferible que el mesero reintente a que quede una
     # mesa ocupada con medio pedido dentro.
     for item in datos.items:
-        if item.producto_id is not None and db.get(models.Producto, item.producto_id) is None:
-            raise HTTPException(status_code=404, detail="Producto no encontrado")
-        if item.plato_id is not None and db.get(models.Plato, item.plato_id) is None:
-            raise HTTPException(status_code=404, detail="Plato no encontrado")
+        servicios.precio_de_venta_de(
+            db, producto_id=item.producto_id, plato_id=item.plato_id
+        )
 
     pedido = db.scalar(
         select(models.PedidoMesa).where(
@@ -191,7 +238,10 @@ async def enviar_pedido(
         db.flush()
 
     for item in datos.items:
-        _sumar_item(db, pedido, item)
+        _sumar_item(db, pedido, item, mesero)
+
+    if datos.clave is not None:
+        db.add(models.EnvioMesa(clave=datos.clave, pedido_id=pedido.id))
 
     db.commit()
     db.refresh(pedido)
@@ -207,12 +257,12 @@ async def agregar_item(
     pedido_id: int,
     datos: schemas.ItemPedidoCrear,
     db: Session = Depends(get_db),
-    _: models.Usuario = Depends(salon),
+    mesero: models.Usuario = Depends(salon),
 ):
     pedido = _buscar(db, pedido_id)
     _exigir_abierto(pedido)
 
-    _sumar_item(db, pedido, datos)
+    _sumar_item(db, pedido, datos, mesero)
 
     db.commit()
     db.refresh(pedido)
@@ -220,28 +270,57 @@ async def agregar_item(
     return pedido
 
 
-@router.patch("/{pedido_id}/items/{detalle_id}", response_model=schemas.PedidoLeer)
-async def cambiar_cantidad(
+@router.post(
+    "/{pedido_id}/items/{detalle_id}/quitar", response_model=schemas.PedidoLeer
+)
+async def quitar_item(
     pedido_id: int,
     detalle_id: int,
-    datos: schemas.ItemPedidoCantidad,
+    datos: schemas.QuitarItem,
     db: Session = Depends(get_db),
-    _: models.Usuario = Depends(salon),
+    usuario: models.Usuario = Depends(salon),
 ):
+    """Quita de la mesa algo que ya se había enviado, y deja el registro.
+
+    Es la única forma de bajar lo que debe una mesa: no hay otra puerta que
+    cambie cantidades sin dejar rastro.
+    """
     pedido = _buscar(db, pedido_id)
     _exigir_abierto(pedido)
 
     detalle = db.get(models.DetallePedidoMesa, detalle_id)
     if detalle is None or detalle.pedido_id != pedido.id:
         raise HTTPException(status_code=404, detail="Ese ítem no está en esta mesa")
+    if datos.cantidad > detalle.cantidad:
+        raise HTTPException(
+            status_code=400,
+            detail=f"En la mesa solo hay {detalle.cantidad:g} de {detalle.nombre}.",
+        )
 
-    if datos.cantidad <= 0:
+    con_codigo = _autorizar_correccion(detalle, usuario, datos.codigo_autorizacion)
+
+    db.add(
+        models.CorreccionPedido(
+            pedido_id=pedido.id,
+            nombre=detalle.nombre,
+            cantidad=datos.cantidad,
+            precio_unitario=detalle.precio_unitario,
+            motivo=datos.motivo,
+            usuario_id=usuario.id,
+            con_codigo=con_codigo,
+        )
+    )
+
+    detalle.cantidad -= datos.cantidad
+    # Comparar con un margen y no con cero exacto: 0,3 kg − 0,1 − 0,2 no
+    # siempre da 0 en la aritmética del computador.
+    if detalle.cantidad < 1e-9:
         db.delete(detalle)
-    else:
-        detalle.cantidad = datos.cantidad
 
     db.commit()
     db.refresh(pedido)
+    # La caja y la cocina se enteran: la cuenta cambió, y si era un plato,
+    # ya no hay que prepararlo.
     await tablero.avisar("mesa_actualizada", _resumen(pedido))
     return pedido
 
@@ -284,13 +363,26 @@ async def cobrar_mesa(
 
     servicios.exigir_caja_abierta(db)
 
+    # El mesero pudo haber agregado algo entre que el cajero leyó la cuenta
+    # y le dio a cobrar. Cobrar igual dejaría al cliente pagando una cifra
+    # y al sistema registrando otra: el cierre saldría descuadrado.
+    if datos.total_esperado is not None and datos.total_esperado != pedido.total:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"La cuenta de la mesa {pedido.mesa} cambió: ahora es "
+                f"{servicios.plata(pedido.total)}, no {servicios.plata(datos.total_esperado)}. "
+                "Revísala con el cliente antes de cobrar."
+            ),
+        )
+
     venta = servicios.registrar_venta(
         db,
         vendedor=vendedor,
         tipo=models.TipoCobro.restaurante,
-        metodo_pago=datos.metodo_pago,
         mesa=pedido.mesa,
         items=pedido.detalles,
+        cobro=datos,
     )
 
     # Cobrar la mesa y cerrarla es una sola operación: nunca puede quedar

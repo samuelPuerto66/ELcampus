@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -15,6 +15,8 @@ def _comanda(detalle: models.DetallePedidoMesa) -> schemas.ItemComanda:
         id=detalle.id,
         pedido_id=detalle.pedido_id,
         mesa=detalle.pedido.mesa,
+        para_llevar=detalle.pedido.para_llevar,
+        nombre_cliente=detalle.pedido.nombre_cliente,
         nombre=detalle.nombre,
         cantidad=detalle.cantidad,
         notas=detalle.notas,
@@ -38,15 +40,21 @@ def pendientes(
 ):
     """Lo que la cocina tiene que preparar, lo más viejo primero.
 
-    Solo platos: una cerveza no se cocina. Y solo de mesas sin cobrar —
-    una mesa ya pagada no tiene nada pendiente en la parrilla.
+    Solo platos: una cerveza no se cocina. Y de dos lugares: las mesas que
+    todavía no se han cobrado, y los pedidos para llevar, que se pagan
+    antes de cocinarse (salvo que se haya anulado esa venta).
     """
+    de_una_mesa_sin_cobrar = models.PedidoMesa.estado != models.EstadoPedidoMesa.pagado
+    para_llevar_vigente = and_(
+        models.PedidoMesa.para_llevar.is_(True), models.Venta.anulada.is_(False)
+    )
     consulta = (
         select(models.DetallePedidoMesa)
         .join(models.PedidoMesa)
+        .outerjoin(models.Venta, models.PedidoMesa.venta_id == models.Venta.id)
         .where(
             models.DetallePedidoMesa.plato_id.is_not(None),
-            models.PedidoMesa.estado != models.EstadoPedidoMesa.pagado,
+            or_(de_una_mesa_sin_cobrar, para_llevar_vigente),
         )
         .order_by(models.DetallePedidoMesa.creado_en)
     )
@@ -69,10 +77,17 @@ async def marcar_listo(
     db.commit()
     db.refresh(detalle)
 
-    # El mesero ve en su celular que ya puede recoger el plato.
+    # El mesero ve en su celular que ya puede recoger el plato; si es para
+    # llevar, la caja ve a quién tiene que llamar.
     await tablero.avisar(
         "plato_listo",
-        {"mesa": detalle.pedido.mesa, "nombre": detalle.nombre, "detalle_id": detalle.id},
+        {
+            "mesa": detalle.pedido.mesa,
+            "nombre": detalle.nombre,
+            "detalle_id": detalle.id,
+            "para_llevar": detalle.pedido.para_llevar,
+            "cliente": detalle.pedido.nombre_cliente,
+        },
     )
     return _comanda(detalle)
 

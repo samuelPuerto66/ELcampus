@@ -90,33 +90,46 @@ listas de productos y platos.
 - **`passlib` quedó descartado** — está abandonado y rompe con bcrypt 5.
   Se usa `bcrypt` directo.
 
-## Estado actual (21 sep 2026)
+## Estado actual (6 oct 2026, tarde)
 
-Backend — 34 pruebas automáticas pasando:
-- [x] Sesiones reales con JWT, claves con bcrypt, permisos por rol
-- [x] Productos (alta por código de barras, búsqueda, cambio de precio)
-- [x] Platos, con los especiales filtrados por sus fechas
-- [x] Cobro en transacción atómica, anulación con devolución de stock
-- [x] Pedidos de mesa + WebSocket: la cuenta salta sola a la caja
-- [x] Cobrar una mesa cierra el pedido y crea la venta en una sola operación
+Backend — 196 pruebas automáticas pasando:
+- [x] Sesiones reales con JWT, claves con bcrypt, permisos por rol, código
+      de administrador como segunda puerta
+- [x] Productos (alta por código de barras, búsqueda, cambio de precio),
+      con autocompletado del nombre desde Open Food Facts
+- [x] Platos, con los especiales filtrados por sus fechas, y recetas que
+      descuentan los insumos del inventario
+- [x] Cobro en transacción atómica, anulación con devolución de stock y
+      control de quién puede anular qué
+- [x] Pagos divididos (mitad efectivo, mitad Nequi), propina aparte de la
+      venta, descuentos y cortesías con motivo y autorización
+- [x] Pedidos de mesa + WebSocket: la cuenta salta sola a la caja; la caja
+      no cobra si la mesa cambió mientras la miraba
+- [x] Envío del mesero con clave propia: un reintento no duplica el pedido
+- [x] Pantalla de cocina, con notas por plato y pedidos para llevar
+- [x] Corregir un pedido ya enviado, con registro y autorización
+- [x] Fiado: clientes con cupo, ventas fiadas, abonos que entran al cuadre
 - [x] Inventario: entradas que suman, ajustes de conteo con rastro, alertas
-- [x] Cierre de caja con cuadre de efectivo
-- [x] Reportes del día, comparación contra la semana pasada, más vendidos
+- [x] Turno de caja obligatorio, cierre a ciegas, cuadre por pagos en efectivo
+- [x] Reportes del día (solo administrador): utilidad, propinas, descuentos,
+      anulaciones, cierres de caja
+- [x] Copia de seguridad diaria, aunque el servidor no se reinicie
 
-Frontend — las tres pantallas funcionando y probadas en el navegador:
+Frontend:
 - [x] Login
-- [x] Caja: escaneo con foco permanente, suma de repetidos, flujo de peso
-      en kilos, vuelto, cobro, anulación, avisos de mesa en vivo
-- [x] Mesero: cuadrícula de mesas con estado, detalle con +/−, pedir la cuenta
-- [x] Admin: ventas del día, cómo pagaron, se está acabando, más vendidos
+- [x] Caja: escaneo con foco permanente, corregir o quitar líneas, peso en
+      kilos, vuelto, pago dividido, descuento, propina, fiado, platos para
+      llevar, cobro, anulación
+- [x] Mesero: mesas con estado, pedido que sobrevive a un corte de WiFi,
+      notas para la cocina, corregir lo enviado
+- [x] Cocina
+- [x] Admin: resumen, costos y recetas, carga de productos, fiado, usuarios
+- [x] Las cifras de plata se leen como se escriben en Colombia ("350.000")
 
 Pendiente:
-- [ ] Alembic (migraciones) — antes de cargar datos reales
-- [ ] Comanda a cocina: hoy el mesero agrega platos y **la cocina no se entera**
-- [ ] Costo por producto (sin costo solo se ve venta, nunca utilidad)
-- [ ] Modo offline del mesero (si se cae el WiFi no puede tomar pedidos)
-- [ ] Carga masiva del catálogo + autocompletado con Open Food Facts
-- [ ] Backups automáticos
+- [ ] Alembic (migraciones) — hoy `migrar.py` hace ese trabajo a mano
+- [ ] Facturación electrónica DIAN: esperando las respuestas del contador,
+      ver `docs/facturacion-dian.md`
 - [ ] Decidir si se imprimen recibos térmicos
 
 ## Pendiente de decidir
@@ -125,7 +138,6 @@ Pendiente:
   totales se redondean a peso entero al cobrar. Migrar a enteros (pesos)
   sería más exacto y hoy costaría poco; más adelante, con datos reales
   encima, cuesta más.
-- **Un pago por venta.** Si un cliente paga mitad en efectivo y mitad por
-  Nequi, hoy no se puede registrar así.
-- **No hay descuentos ni cortesías.** Una invitación al cliente frecuente
-  hoy tocaría registrarla como anulación, que ensucia el historial.
+- **El 10% del descuento libre** y **el 10% de la propina sugerida** son
+  supuestos razonables, no decisiones del dueño. Se cambian en
+  `PORCENTAJE_DESCUENTO_LIBRE` (servidor) y en `Caja.tsx`.

@@ -24,13 +24,18 @@ def _efectivo_del_turno(db: Session, desde: datetime, hasta: datetime) -> float:
     cobrado ayer dejaría el cajón corto y el cierre reportaría un faltante
     que en realidad es una devolución.
     """
-    en_efectivo = models.Venta.metodo_pago == models.MetodoPago.efectivo
+    # Solo la parte en efectivo de cada venta: si pagaron mitad por Nequi,
+    # esa mitad nunca pasó por el cajón. Las propinas en efectivo sí entran.
+    efectivo = (
+        select(func.coalesce(func.sum(models.PagoVenta.monto), 0.0))
+        .join(models.Venta, models.PagoVenta.venta_id == models.Venta.id)
+        .where(models.PagoVenta.metodo == models.MetodoPago.efectivo)
+    )
 
     # Todo lo cobrado en el turno, incluso lo que después se anuló: esa
     # plata sí entró al cajón.
     entradas = db.scalar(
-        select(func.coalesce(func.sum(models.Venta.total), 0.0)).where(
-            en_efectivo,
+        efectivo.where(
             models.Venta.fecha_hora >= desde,
             models.Venta.fecha_hora <= hasta,
         )
@@ -39,15 +44,38 @@ def _efectivo_del_turno(db: Session, desde: datetime, hasta: datetime) -> float:
     # Todo lo devuelto durante el turno, sin importar de qué día sea la
     # venta original.
     salidas = db.scalar(
-        select(func.coalesce(func.sum(models.Venta.total), 0.0)).where(
-            en_efectivo,
+        efectivo.where(
             models.Venta.anulada.is_(True),
             models.Venta.anulada_en >= desde,
             models.Venta.anulada_en <= hasta,
         )
     )
 
-    return float(entradas or 0.0) - float(salidas or 0.0)
+    # Los abonos de fiado en efectivo también entran al cajón, y si un
+    # administrador anula uno durante el turno, esa plata se devuelve.
+    abonos_en_efectivo = select(
+        func.coalesce(func.sum(models.AbonoFiado.monto), 0.0)
+    ).where(models.AbonoFiado.metodo == models.MetodoPago.efectivo)
+    abonos = db.scalar(
+        abonos_en_efectivo.where(
+            models.AbonoFiado.fecha >= desde,
+            models.AbonoFiado.fecha <= hasta,
+        )
+    )
+    abonos_devueltos = db.scalar(
+        abonos_en_efectivo.where(
+            models.AbonoFiado.anulado.is_(True),
+            models.AbonoFiado.anulado_en >= desde,
+            models.AbonoFiado.anulado_en <= hasta,
+        )
+    )
+
+    return (
+        float(entradas or 0.0)
+        - float(salidas or 0.0)
+        + float(abonos or 0.0)
+        - float(abonos_devueltos or 0.0)
+    )
 
 
 @router.get("/actual", response_model=schemas.CierreCajaLeer | None)

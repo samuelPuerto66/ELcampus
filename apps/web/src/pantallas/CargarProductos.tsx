@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 
 import { api } from '../api/cliente'
 import type { ConsultaCodigo, Producto } from '../api/tipos'
-import { plata } from '../formato'
+import { leerCantidad, leerPesos, plata } from '../formato'
 
 interface Borrador {
   codigo_barras: string
@@ -79,13 +79,21 @@ export default function CargarProductos() {
     e.preventDefault()
     if (!borrador || ocupado) return
 
-    const precio = Number(borrador.precio.replace(',', '.'))
+    // "3.500" son tres mil quinientos. Leído como número de computador
+    // daba 3,5 y la cerveza quedaba a cuatro pesos.
+    const precio = leerPesos(borrador.precio)
+    const costo = leerPesos(borrador.costo)
+    const stock = leerCantidad(borrador.stock)
     if (!borrador.nombre.trim()) {
       setError('Ponle un nombre al producto.')
       return
     }
     if (!precio || precio <= 0) {
       setError('El precio tiene que ser mayor que cero.')
+      return
+    }
+    if (borrador.stock.trim() && (stock === null || stock < 0)) {
+      setError('Lo que hay en existencia tiene que ser un número, por ejemplo 24.')
       return
     }
 
@@ -96,8 +104,8 @@ export default function CargarProductos() {
         codigo_barras: borrador.codigo_barras,
         nombre: borrador.nombre.trim(),
         precio,
-        costo: borrador.costo ? Number(borrador.costo.replace(',', '.')) : null,
-        stock_actual: borrador.stock ? Number(borrador.stock.replace(',', '.')) : 0,
+        costo,
+        stock_actual: stock ?? 0,
         categoria: borrador.categoria.trim() || null,
         es_insumo: borrador.esInsumo,
       })
@@ -168,6 +176,11 @@ export default function CargarProductos() {
                   value={borrador.precio}
                   onChange={(e) => cambiar('precio', e.target.value)}
                 />
+                {leerPesos(borrador.precio) !== null && (
+                  <small className="lectura-plata">
+                    = {plata(leerPesos(borrador.precio) ?? 0)}
+                  </small>
+                )}
               </label>
               <label className="campo">
                 <span className="etiqueta">Costo</span>
@@ -177,6 +190,11 @@ export default function CargarProductos() {
                   value={borrador.costo}
                   onChange={(e) => cambiar('costo', e.target.value)}
                 />
+                {leerPesos(borrador.costo) !== null && (
+                  <small className="lectura-plata">
+                    = {plata(leerPesos(borrador.costo) ?? 0)}
+                  </small>
+                )}
               </label>
             </div>
 

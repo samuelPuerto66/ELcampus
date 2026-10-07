@@ -11,11 +11,36 @@ import sys
 
 from sqlalchemy import text
 
+from app import models
 from app.database import engine
 
 
 def columnas(con, tabla: str) -> set[str]:
     return {fila[1] for fila in con.execute(text(f"PRAGMA table_info({tabla})"))}
+
+
+def agregar_columna(con, hechos: list[str], tabla: str, columna: str, tipo: str) -> None:
+    """Agrega la columna si todavía no está. Si ya está, no toca nada."""
+    if columna not in columnas(con, tabla):
+        con.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}"))
+        hechos.append(f"{tabla}.{columna} agregada")
+
+
+def crear_tabla(con, hechos: list[str], modelo) -> None:
+    """Crea la tabla de un modelo si todavía no existe.
+
+    Sale tal cual de app/models.py, así que nunca queda distinta de lo que
+    el código espera. Puede que ya exista: el servidor crea las tablas
+    nuevas solo al arrancar, aunque no sepa agregar columnas.
+    """
+    tabla = modelo.__table__
+    existe = con.execute(
+        text("SELECT 1 FROM sqlite_master WHERE type='table' AND name=:nombre"),
+        {"nombre": tabla.name},
+    ).first()
+    if existe is None:
+        tabla.create(con)
+        hechos.append(f"tabla {tabla.name} creada")
 
 
 def main() -> int:
@@ -150,6 +175,50 @@ def main() -> int:
                 )
             )
             hechos.append("tabla insumos_plato creada")
+
+        # --- descuentos, propinas y pagos divididos ---
+        agregar_columna(con, hechos, "ventas", "descuento", "FLOAT NOT NULL DEFAULT 0")
+        agregar_columna(con, hechos, "ventas", "motivo_descuento", "VARCHAR")
+        agregar_columna(
+            con, hechos, "ventas", "descuento_con_codigo", "BOOLEAN NOT NULL DEFAULT 0"
+        )
+        agregar_columna(con, hechos, "ventas", "propina", "FLOAT NOT NULL DEFAULT 0")
+        crear_tabla(con, hechos, models.PagoVenta)
+        crear_tabla(con, hechos, models.EnvioMesa)
+
+        # Cada venta vieja tenía un solo método de pago. Se le crea su pago
+        # para que el cuadre de caja, que ahora cuenta por pagos, la vea.
+        # Va aparte de crear la tabla: el servidor pudo crearla vacía.
+        rellenadas = con.execute(
+            text(
+                """
+                INSERT INTO pagos_venta (venta_id, metodo, monto)
+                SELECT v.id, v.metodo_pago, v.total + v.propina
+                  FROM ventas v
+                 WHERE v.total + v.propina > 0
+                   AND NOT EXISTS (SELECT 1 FROM pagos_venta p WHERE p.venta_id = v.id)
+                """
+            )
+        ).rowcount
+        if rellenadas:
+            hechos.append(f"{rellenadas} ventas anteriores pasadas a pagos_venta")
+
+        # --- notas y correcciones de pedidos ---
+        agregar_columna(con, hechos, "detalle_pedido_mesa", "agregado_por_id", "INTEGER")
+        agregar_columna(con, hechos, "detalle_pedido_mesa", "actualizado_en", "DATETIME")
+        crear_tabla(con, hechos, models.CorreccionPedido)
+
+        # --- fiado ---
+        # Primero los clientes: los abonos y las ventas apuntan a ellos.
+        crear_tabla(con, hechos, models.ClienteFiado)
+        crear_tabla(con, hechos, models.AbonoFiado)
+        agregar_columna(con, hechos, "ventas", "cliente_fiado_id", "INTEGER")
+
+        # --- platos para llevar ---
+        agregar_columna(
+            con, hechos, "pedidos_mesa", "para_llevar", "BOOLEAN NOT NULL DEFAULT 0"
+        )
+        agregar_columna(con, hechos, "pedidos_mesa", "nombre_cliente", "VARCHAR(60)")
 
     if hechos:
         for h in hechos:

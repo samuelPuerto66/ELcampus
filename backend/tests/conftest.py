@@ -1,3 +1,10 @@
+import os
+
+# Las pruebas nunca tocan la base real. Esto va antes de importar la app:
+# al importarse, el servidor crea las tablas que falten en la base que diga
+# ELCAMPUS_DB, y sin esta línea esa era elcampus.db, la de verdad.
+os.environ["ELCAMPUS_DB"] = "sqlite://"
+
 from datetime import date
 
 import pytest
@@ -131,3 +138,10 @@ def como(db, datos):
 
     yield fabricar
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def ver_resumen(como):
+    """El resumen del día como lo ve el dueño: los reportes son solo suyos."""
+    admin = como("admin")
+    return lambda: admin.get("/api/reportes/dia").json()

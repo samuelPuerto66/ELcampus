@@ -5,9 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, servicios
-from ..auth import caja, usuario_actual
+from ..auth import caja
 from ..config import MINUTOS_PARA_ANULAR
 from ..database import get_db
+from ..eventos import tablero
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
 
@@ -48,7 +49,7 @@ def _puede_anular(venta: models.Venta, usuario: models.Usuario, db: Session) -> 
 
 
 @router.post("", response_model=schemas.VentaLeer, status_code=201)
-def cobrar(
+async def cobrar(
     datos: schemas.VentaCrear,
     db: Session = Depends(get_db),
     vendedor: models.Usuario = Depends(caja),
@@ -59,12 +60,23 @@ def cobrar(
         db,
         vendedor=vendedor,
         tipo=datos.tipo,
-        metodo_pago=datos.metodo_pago,
         mesa=datos.mesa,
         items=datos.items,
+        cobro=datos,
     )
+    # Los detalles se guardaron aparte: se recarga la venta para que
+    # `venta.detalles` los traiga antes de armar la comanda de la cocina.
+    db.flush()
+    db.refresh(venta)
+    comanda = servicios.crear_comanda_para_llevar(db, venta, datos.nombre_para_llevar)
     db.commit()
     db.refresh(venta)
+
+    if comanda is not None:
+        await tablero.avisar(
+            "para_llevar",
+            {"mesa": comanda.mesa, "pedido_id": comanda.id, "nombre": comanda.nombre_cliente},
+        )
     return venta
 
 
@@ -73,7 +85,7 @@ def listar_ventas(
     limite: int = 50,
     dia: date | None = None,
     db: Session = Depends(get_db),
-    _: models.Usuario = Depends(usuario_actual),
+    _: models.Usuario = Depends(caja),
 ):
     consulta = select(models.Venta).order_by(models.Venta.id.desc())
     if dia is not None:
@@ -88,7 +100,7 @@ def listar_ventas(
 def obtener_venta(
     venta_id: int,
     db: Session = Depends(get_db),
-    _: models.Usuario = Depends(usuario_actual),
+    _: models.Usuario = Depends(caja),
 ):
     venta = db.get(models.Venta, venta_id)
     if venta is None:

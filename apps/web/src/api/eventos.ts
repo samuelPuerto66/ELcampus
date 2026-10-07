@@ -10,6 +10,11 @@ export interface Aviso {
     | 'mesa_cobrada'
     | 'plato_listo'
     | 'cocina_actualizada'
+    | 'para_llevar'
+    // No viene del servidor: lo genera esta pantalla cuando vuelve a
+    // engancharse después de un corte. Lo que pasó mientras estaba caída
+    // no le llegó, así que hay que volver a preguntar.
+    | 'reconectado'
   datos: {
     pedido_id?: number
     mesa: number
@@ -18,6 +23,9 @@ export interface Aviso {
     items?: number
     nombre?: string
     detalle_id?: number
+    /** En plato_listo: si era para llevar, y a nombre de quién. */
+    para_llevar?: boolean
+    cliente?: string | null
   }
 }
 
@@ -37,6 +45,7 @@ export function useEventos(alRecibir: (aviso: Aviso) => void) {
     let socket: WebSocket | null = null
     let reintento: number | undefined
     let vivo = true
+    let yaConecto = false
 
     const conectar = () => {
       if (!vivo) return
@@ -45,7 +54,11 @@ export function useEventos(alRecibir: (aviso: Aviso) => void) {
         `${protocolo}://${location.host}/api/eventos?token=${sesion.access_token}`,
       )
 
-      socket.onopen = () => setConectado(true)
+      socket.onopen = () => {
+        setConectado(true)
+        if (yaConecto) manejador.current({ evento: 'reconectado', datos: { mesa: 0 } })
+        yaConecto = true
+      }
       socket.onmessage = (e) => {
         try {
           manejador.current(JSON.parse(e.data) as Aviso)

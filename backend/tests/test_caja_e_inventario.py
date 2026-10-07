@@ -97,7 +97,7 @@ def test_alerta_de_lo_que_se_esta_acabando(cliente, como, datos):
     assert "Cerveza Aguila 330ml" in nombres
 
 
-def test_resumen_del_dia(cliente, datos):
+def test_resumen_del_dia(cliente, datos, ver_resumen):
     _cobrar_efectivo(cliente, datos["cerveza"].id, 2)  # 7.000
     cliente.post(
         "/api/ventas",
@@ -109,7 +109,7 @@ def test_resumen_del_dia(cliente, datos):
         },
     )
 
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
 
     assert resumen["total"] == 52000
     assert resumen["cantidad_ventas"] == 2
@@ -118,11 +118,11 @@ def test_resumen_del_dia(cliente, datos):
     assert resumen["mas_vendidos"][0]["nombre"] == "Cerveza Aguila 330ml"
 
 
-def test_una_venta_anulada_no_cuenta_en_el_reporte(cliente, datos):
+def test_una_venta_anulada_no_cuenta_en_el_reporte(cliente, datos, ver_resumen):
     venta = _cobrar_efectivo(cliente, datos["cerveza"].id, 2)
     cliente.post(f"/api/ventas/{venta['id']}/anular", json={"motivo": "prueba"})
 
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
 
     assert resumen["total"] == 0
     assert resumen["cantidad_ventas"] == 0

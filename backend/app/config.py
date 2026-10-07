@@ -59,6 +59,19 @@ ALERTA_STOCK_POR_DEFECTO = 5
 # una puerta abierta para que se pierda plata sin rastro.
 MINUTOS_PARA_ANULAR = 10
 
+# Cuánto tiempo tiene un mesero para corregir solo lo que él mismo acaba de
+# enviar ("puse 3 cervezas y eran 2"). Pasado ese rato, o si es algo que
+# envió otro, la corrección necesita el código de un administrador.
+MINUTOS_PARA_CORREGIR = 5
+
+# Hasta qué porcentaje de la cuenta puede descontar un vendedor por su
+# cuenta — el típico "déjelo en veinte mil". Más que eso, o una cortesía
+# completa, necesita el código de un administrador.
+PORCENTAJE_DESCUENTO_LIBRE = 10
+
 # Copias de seguridad de la base. Una sola carpeta local, rotando por días.
 CARPETA_RESPALDOS = BASE_DIR / "respaldos"
 DIAS_DE_RESPALDO = 30
+# Cada cuánto revisa el servidor si ya hizo la copia del día. Así hay copia
+# diaria aunque el PC de la caja pase semanas sin apagarse.
+MINUTOS_ENTRE_REVISIONES_DE_RESPALDO = 60

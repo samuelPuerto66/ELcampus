@@ -44,6 +44,11 @@ class MetodoPago(str, enum.Enum):
     nequi = "nequi"
     daviplata = "daviplata"
     tarjeta = "tarjeta"
+    # La plata no entró: el cliente quedó debiendo. Ver ClienteFiado.
+    fiado = "fiado"
+    # Solo como resumen en la venta: el cliente pagó con más de un método.
+    # El detalle de cuánto entró por cada uno vive en PagoVenta.
+    mixto = "mixto"
 
 
 class EstadoPedidoMesa(str, enum.Enum):
@@ -183,9 +188,26 @@ class Venta(Base):
     fecha_hora: Mapped[datetime] = mapped_column(default=datetime.now)
     tipo: Mapped[TipoCobro] = mapped_column(SAEnum(TipoCobro))
     mesa: Mapped[int | None] = mapped_column(default=None)
+    # Lo que el negocio cobró por lo vendido, ya con el descuento restado y
+    # sin la propina. Es la cifra de ventas del día.
     total: Mapped[float]
     metodo_pago: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
     vendedor_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+
+    # Descuento o cortesía. Queda escrito por qué y si hizo falta el código
+    # de un administrador: regalar plata sin rastro es lo mismo que perderla.
+    descuento: Mapped[float] = mapped_column(default=0)
+    motivo_descuento: Mapped[str | None] = mapped_column(default=None)
+    descuento_con_codigo: Mapped[bool] = mapped_column(default=False)
+
+    # La propina es de los empleados, no del negocio: va aparte del total
+    # para no inflar las ventas, pero sí entra al cajón si la dan en efectivo.
+    propina: Mapped[float] = mapped_column(default=0)
+
+    # A quién se le fió, si parte de la cuenta quedó fiada.
+    cliente_fiado_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clientes_fiado.id"), default=None
+    )
 
     # Anulación: nunca se borra una venta, se marca. Así el historial de
     # auditoría y el cuadre de caja siempre cuadran con lo que pasó de verdad.
@@ -198,7 +220,39 @@ class Venta(Base):
     factura_electronica_id: Mapped[str | None] = mapped_column(String(100), default=None)
 
     vendedor: Mapped["Usuario"] = relationship(foreign_keys=[vendedor_id])
+    anulada_por: Mapped["Usuario | None"] = relationship(foreign_keys=[anulada_por_id])
     detalles: Mapped[list["DetalleVenta"]] = relationship(back_populates="venta")
+    pagos: Mapped[list["PagoVenta"]] = relationship(
+        back_populates="venta", cascade="all, delete-orphan"
+    )
+
+    @property
+    def subtotal(self) -> float:
+        """Lo que sumaban los productos antes del descuento."""
+        return self.total + self.descuento
+
+    @property
+    def a_cobrar(self) -> float:
+        """Lo que pagó el cliente en total: la cuenta más la propina."""
+        return self.total + self.propina
+
+
+class PagoVenta(Base):
+    """Cuánto entró por cada método en una venta.
+
+    Una venta normal tiene un solo pago. Si el cliente paga mitad en
+    efectivo y mitad por Nequi, tiene dos, y el cuadre de caja cuenta solo
+    la parte en efectivo: es la única que está en el cajón.
+    """
+
+    __tablename__ = "pagos_venta"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    venta_id: Mapped[int] = mapped_column(ForeignKey("ventas.id"), index=True)
+    metodo: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
+    monto: Mapped[float]
+
+    venta: Mapped["Venta"] = relationship(back_populates="pagos")
 
 
 class DetalleVenta(Base):
@@ -233,6 +287,12 @@ class DetalleVenta(Base):
     )
 
 
+# Un pedido para llevar no ocupa ninguna mesa. Se guarda con este número
+# solo porque la columna `mesa` no admite vacío; lo que manda es el campo
+# `para_llevar`, y ninguna pantalla muestra una "mesa 0".
+MESA_PARA_LLEVAR = 0
+
+
 class PedidoMesa(Base):
     __tablename__ = "pedidos_mesa"
 
@@ -243,6 +303,12 @@ class PedidoMesa(Base):
     hora_apertura: Mapped[datetime] = mapped_column(default=datetime.now)
     hora_cuenta_pedida: Mapped[datetime | None] = mapped_column(default=None)
     venta_id: Mapped[int | None] = mapped_column(ForeignKey("ventas.id"), default=None)
+
+    # Platos vendidos en la caja para llevar. Se pagan antes de cocinarse,
+    # así que nacen ya pagados; existen solo para que la cocina los vea.
+    para_llevar: Mapped[bool] = mapped_column(default=False)
+    # A nombre de quién, para llamarlo cuando esté listo.
+    nombre_cliente: Mapped[str | None] = mapped_column(String(60), default=None)
 
     detalles: Mapped[list["DetallePedidoMesa"]] = relationship(
         back_populates="pedido", cascade="all, delete-orphan"
@@ -272,6 +338,12 @@ class DetallePedidoMesa(Base):
         SAEnum(EstadoCocina), default=EstadoCocina.pendiente
     )
     creado_en: Mapped[datetime] = mapped_column(default=datetime.now)
+    # Quién mandó lo último de esta línea, y cuándo. Es lo que decide si el
+    # mesero puede corregirla solo o necesita a un administrador.
+    agregado_por_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id"), default=None
+    )
+    actualizado_en: Mapped[datetime | None] = mapped_column(default=None)
 
     pedido: Mapped["PedidoMesa"] = relationship(back_populates="detalles")
     producto: Mapped["Producto | None"] = relationship()
@@ -292,6 +364,97 @@ class DetallePedidoMesa(Base):
             name="ck_detalle_pedido_producto_xor_plato",
         ),
     )
+
+
+class CorreccionPedido(Base):
+    """Algo que se quitó de una mesa después de enviarlo a la caja.
+
+    Quitar de la cuenta algo que el cliente sí consumió es otra forma de
+    regalar plata, así que cada corrección queda escrita: qué, cuánto, quién
+    y por qué. El dueño las ve en el resumen del día.
+    """
+
+    __tablename__ = "correcciones_pedido"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pedido_id: Mapped[int] = mapped_column(ForeignKey("pedidos_mesa.id"), index=True)
+    # El nombre y el precio se copian: si después se borra el producto o
+    # cambia el precio, el registro sigue diciendo lo que pasó.
+    nombre: Mapped[str] = mapped_column(String(200))
+    cantidad: Mapped[float]
+    precio_unitario: Mapped[float]
+    motivo: Mapped[str]
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    con_codigo: Mapped[bool] = mapped_column(default=False)
+    hora: Mapped[datetime] = mapped_column(default=datetime.now)
+
+    pedido: Mapped["PedidoMesa"] = relationship()
+    usuario: Mapped["Usuario"] = relationship()
+
+    @property
+    def monto(self) -> float:
+        return float(round(self.cantidad * self.precio_unitario))
+
+
+class ClienteFiado(Base):
+    """Alguien a quien el negocio le fía: el cuaderno de fiados.
+
+    El cupo es hasta cuánto puede llegar a deber. Sin cupo (None) no hay
+    límite; eso lo decide el dueño cliente por cliente.
+    """
+
+    __tablename__ = "clientes_fiado"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(120), unique=True)
+    telefono: Mapped[str | None] = mapped_column(String(40), default=None)
+    cupo: Mapped[float | None] = mapped_column(default=None)
+    # Apagar a un cliente no borra lo que debe: solo deja de fiársele.
+    activo: Mapped[bool] = mapped_column(default=True)
+    creado_en: Mapped[datetime] = mapped_column(default=datetime.now)
+
+
+class AbonoFiado(Base):
+    """Plata que un cliente trajo para pagar lo que debía.
+
+    Un abono en efectivo entra al cajón, así que cuenta en el cuadre del
+    turno igual que una venta. Por eso no se borra: si se registró mal, un
+    administrador lo anula y queda el rastro.
+    """
+
+    __tablename__ = "abonos_fiado"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cliente_id: Mapped[int] = mapped_column(ForeignKey("clientes_fiado.id"), index=True)
+    monto: Mapped[float]
+    metodo: Mapped[MetodoPago] = mapped_column(SAEnum(MetodoPago))
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
+    fecha: Mapped[datetime] = mapped_column(default=datetime.now)
+
+    anulado: Mapped[bool] = mapped_column(default=False)
+    anulado_en: Mapped[datetime | None] = mapped_column(default=None)
+    anulado_por_id: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id"), default=None
+    )
+    motivo_anulacion: Mapped[str | None] = mapped_column(default=None)
+
+    cliente: Mapped["ClienteFiado"] = relationship()
+    usuario: Mapped["Usuario"] = relationship(foreign_keys=[usuario_id])
+
+
+class EnvioMesa(Base):
+    """Recibo de cada pedido que sube del celular del mesero.
+
+    Si se cae el WiFi justo después de enviar, el celular no sabe si llegó y
+    lo vuelve a mandar. Con la clave del envío el servidor reconoce que ya
+    lo recibió y no lo suma dos veces: sin esto, una picada se vuelve dos.
+    """
+
+    __tablename__ = "envios_mesa"
+
+    clave: Mapped[str] = mapped_column(String(64), primary_key=True)
+    pedido_id: Mapped[int] = mapped_column(ForeignKey("pedidos_mesa.id"))
+    creado_en: Mapped[datetime] = mapped_column(default=datetime.now)
 
 
 class MovimientoInventario(Base):
@@ -322,3 +485,9 @@ class CierreCaja(Base):
     diferencia: Mapped[float | None] = mapped_column(default=None)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"))
     estado: Mapped[EstadoCierreCaja] = mapped_column(SAEnum(EstadoCierreCaja), default=EstadoCierreCaja.abierto)
+
+    usuario: Mapped["Usuario"] = relationship()
+
+    @property
+    def usuario_nombre(self) -> str:
+        return self.usuario.nombre

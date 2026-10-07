@@ -3,8 +3,11 @@
 Sistema de caja, inventario y pedidos para El Campus (Bar, Grill, Fun & Market).
 Supermercado entre semana, restaurante los fines de semana.
 
-Ver [`docs/plan.md`](docs/plan.md) para la arquitectura, el modelo de datos y el
-plan de trabajo por fases (documento vivo).
+**Para prenderlo:** `npm start` en esta carpeta, y listo. Los detalles están
+en [Prenderlo](#prenderlo), y cómo probarlo en [Cómo probarlo](#cómo-probarlo).
+
+Ver [`docs/plan.md`](docs/plan.md) para la arquitectura, el modelo de datos, el
+plan de trabajo por fases y lo que falta (documento vivo).
 
 ## Cómo está armado
 
@@ -12,7 +15,8 @@ plan de trabajo por fases (documento vivo).
 backend/     API en FastAPI + SQLite. Una sola fuente de verdad.
 apps/web/    App en React. Todas las pantallas viven aquí:
              caja (PC), mesas (celular del mesero), cocina y admin.
-docs/        Plan técnico.
+docs/        Plan técnico y preguntas para el contador (DIAN).
+iniciar.mjs  Lo que corre npm start: prende todo con un solo comando.
 ```
 
 Todas las pantallas son **una sola aplicación web**. La caja no es una app
@@ -302,12 +306,58 @@ hecho, y si no hay nada que cambiar lo dice y no toca nada. Si la base no se
 pone al día después de un cambio de esquema, la app falla al leer columnas
 que todavía no existen.
 
-## Pruebas
+## Cómo probarlo
+
+### Pruebas automáticas
+
+Revisan solas las reglas del servidor: cobros, caja, fiado, pedidos,
+inventario. Se corren antes de cada commit; tardan unos 4 minutos y tienen
+que pasar todas.
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+Y para revisar que la app web compila sin errores:
+
+```powershell
+cd apps\web
+npm run build
+```
+
+### Pruebas a mano
+
+Con `npm start` prendido, el PC hace de caja y un celular de mesero. Se
+prueba en tres rondas:
+
+1. **Que cada cosa funcione.**
+   - *Caja* (`vendedor`): abrir el turno; escribir el código `7701234567890`
+     (sale la Cerveza Aguila); cobrar en efectivo y revisar el vuelto; cobrar
+     mitad efectivo y mitad Nequi; dar un descuento de 5 % (pasa sin código)
+     y uno de 20 % (pide código); vender una Picada para llevar; anular una
+     venta.
+   - *Mesero* (`mesero`, en el celular): abrir una mesa; anotar 2 Picadas con
+     la nota "Sin cebolla" solo para 1; enviar; corregir algo recién enviado;
+     pedir la cuenta, que debe saltar sola a la caja.
+   - *Cocina* (`cocina`): ver el pedido con su nota y marcarlo listo.
+   - *Administrador* (`admin` y el código): crear un cliente de fiado con
+     cupo; desde la caja, venderle fiado y recibirle un abono.
+   - *Cierre*: cerrar el turno contando la plata. El resumen del
+     administrador y "Para revisar hoy" tienen que cuadrar con lo que se hizo.
+2. **Tratar de romperla.** Apagar el WiFi del celular y enviar un pedido:
+   debe quedar esperando y llegar solo, una sola vez, cuando vuelva la señal.
+   Tocar "Enviar" varias veces seguidas. Apagar el servidor con Ctrl+C y
+   volverlo a prender. Agregarle algo a una mesa mientras la caja la cobra.
+   Fiar más del cupo.
+3. **Simulacro de un sábado.** Con varias personas, los celulares reales, el
+   lector de código de barras y el WiFi del local: dos horas como si fuera
+   una noche de verdad, anotando en papel cada cobro. Al cerrar, la caja
+   tiene que cuadrar con el papel. Vale anotar también lo que fue lento o
+   confuso, no solo los errores.
+
+Si algo falla, anota con qué usuario, qué hiciste paso a paso, qué esperabas
+y qué salió, con un pantallazo del mensaje.
 
 ## En el negocio (producción)
 

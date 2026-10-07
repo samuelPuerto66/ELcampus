@@ -63,7 +63,7 @@ def test_no_se_puede_abrir_dos_veces_la_misma_mesa(mesero):
     assert segunda.status_code == 409
 
 
-def test_bajar_la_cantidad_a_cero_quita_el_item(mesero, datos):
+def test_quitar_todo_lo_de_una_linea_la_borra(mesero, datos):
     pedido = _abrir(mesero)
     con_item = mesero.post(
         f"/api/pedidos/{pedido['id']}/items",
@@ -71,8 +71,9 @@ def test_bajar_la_cantidad_a_cero_quita_el_item(mesero, datos):
     ).json()
     detalle_id = con_item["detalles"][0]["id"]
 
-    respuesta = mesero.patch(
-        f"/api/pedidos/{pedido['id']}/items/{detalle_id}", json={"cantidad": 0}
+    respuesta = mesero.post(
+        f"/api/pedidos/{pedido['id']}/items/{detalle_id}/quitar",
+        json={"cantidad": 2, "motivo": "se anotó en la mesa equivocada"},
     )
 
     assert respuesta.json()["detalles"] == []

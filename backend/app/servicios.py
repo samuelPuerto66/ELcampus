@@ -9,7 +9,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import models
+from . import fiado, models, schemas
+from .config import PORCENTAJE_DESCUENTO_LIBRE, hash_del_codigo_admin
+from .formato import plata  # noqa: F401  (los routers la usan como servicios.plata)
+from .security import verify_password
 
 
 def redondear_pesos(valor: float) -> float:
@@ -119,14 +122,87 @@ def _descontar(
     )
 
 
+def exigir_codigo_admin(codigo: str | None, *, que_se_quiere: str) -> None:
+    """Frena la operación si no viene el código de administrador correcto.
+
+    Es la autorización en el momento: el administrador escribe su código en
+    la pantalla del vendedor o del mesero, sin tener que entrar con su
+    cuenta. `que_se_quiere` arma el mensaje: "Un descuento de más del 10%".
+    """
+    if not codigo:
+        raise HTTPException(
+            status_code=403,
+            detail=f"{que_se_quiere} necesita el código de un administrador.",
+        )
+    guardado = hash_del_codigo_admin()
+    if guardado is None or not verify_password(codigo, guardado):
+        raise HTTPException(
+            status_code=403, detail="Ese código de administrador no es correcto."
+        )
+
+
+def _autorizar_descuento(
+    vendedor: models.Usuario, descuento: float, subtotal: float, codigo: str | None
+) -> bool:
+    """Decide si el descuento pasa. Devuelve si se usó el código de admin.
+
+    Rebajar un poco ("déjelo en veinte mil") lo puede hacer el vendedor
+    solo. Más que eso necesita un administrador: cobrar completo en
+    efectivo y registrar un descuento grande es la forma de quedarse con
+    la diferencia sin que el cajón descuadre.
+    """
+    if descuento == 0 or vendedor.rol is models.RolUsuario.administrador:
+        return False
+    if descuento <= subtotal * PORCENTAJE_DESCUENTO_LIBRE / 100:
+        return False
+
+    exigir_codigo_admin(
+        codigo, que_se_quiere=f"Un descuento de más del {PORCENTAJE_DESCUENTO_LIBRE}%"
+    )
+    return True
+
+
+def _repartir_pagos(
+    cobro: schemas.Cobro, a_cobrar: float
+) -> list[tuple[models.MetodoPago, float]]:
+    """Cuánto entra por cada método. Tiene que sumar exacto lo cobrado.
+
+    Si sobrara o faltara aunque sea un peso, el cuadre de caja quedaría
+    mal sin que nadie supiera por qué.
+    """
+    if not cobro.pagos:
+        if a_cobrar == 0:
+            # Una cortesía completa: no entra plata por ningún lado.
+            return []
+        return [(cobro.metodo_pago, a_cobrar)]
+
+    por_metodo: dict[models.MetodoPago, float] = {}
+    for pago in cobro.pagos:
+        por_metodo[pago.metodo] = por_metodo.get(pago.metodo, 0.0) + redondear_pesos(
+            pago.monto
+        )
+
+    suma = sum(por_metodo.values())
+    if suma != a_cobrar:
+        diferencia = a_cobrar - suma
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Los pagos suman {plata(suma)} y la cuenta es {plata(a_cobrar)}: "
+                + (f"faltan {plata(diferencia)}." if diferencia > 0 else f"sobran {plata(-diferencia)}.")
+            ),
+        )
+    return list(por_metodo.items())
+
+
 def registrar_venta(
     db: Session,
     *,
     vendedor: models.Usuario,
     tipo: models.TipoCobro,
-    metodo_pago: models.MetodoPago,
     mesa: int | None,
     items,
+    cobro: schemas.Cobro,
 ) -> models.Venta:
     """Cobra y devuelve la venta.
 
@@ -138,7 +214,47 @@ def registrar_venta(
         raise HTTPException(status_code=400, detail="La venta no puede ir vacía")
 
     lineas = _resolver(db, consolidar(items))
-    total = redondear_pesos(sum(linea["subtotal"] for linea in lineas))
+    subtotal = redondear_pesos(sum(linea["subtotal"] for linea in lineas))
+
+    descuento = redondear_pesos(cobro.descuento)
+    motivo = (cobro.motivo_descuento or "").strip() or None
+    if descuento > subtotal:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El descuento ({plata(descuento)}) es mayor que la cuenta ({plata(subtotal)}).",
+        )
+    if descuento > 0 and motivo is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Escribe por qué se hace el descuento: queda en el historial.",
+        )
+    con_codigo = _autorizar_descuento(
+        vendedor, descuento, subtotal, cobro.codigo_autorizacion
+    )
+    total = subtotal - descuento
+
+    propina = redondear_pesos(cobro.propina)
+    if propina > subtotal:
+        raise HTTPException(
+            status_code=400,
+            detail="La propina es más grande que la cuenta. ¿Se fue un cero de más?",
+        )
+
+    pagos = _repartir_pagos(cobro, total + propina)
+
+    # Si parte de la cuenta va fiada, se revisa a quién y si le alcanza el
+    # cupo antes de escribir nada.
+    monto_fiado = sum(monto for metodo, monto in pagos if metodo is models.MetodoPago.fiado)
+    cliente_fiado = (
+        fiado.exigir_cupo(db, cobro.cliente_fiado_id, monto_fiado) if monto_fiado else None
+    )
+
+    if len(pagos) > 1:
+        metodo_pago = models.MetodoPago.mixto
+    elif pagos:
+        metodo_pago = pagos[0][0]
+    else:
+        metodo_pago = cobro.metodo_pago or models.MetodoPago.efectivo
 
     venta = models.Venta(
         tipo=tipo,
@@ -146,9 +262,17 @@ def registrar_venta(
         total=total,
         metodo_pago=metodo_pago,
         vendedor_id=vendedor.id,
+        descuento=descuento,
+        motivo_descuento=motivo if descuento > 0 else None,
+        descuento_con_codigo=con_codigo,
+        propina=propina,
+        cliente_fiado_id=cliente_fiado.id if cliente_fiado else None,
     )
     db.add(venta)
     db.flush()
+
+    for metodo, monto in pagos:
+        db.add(models.PagoVenta(venta_id=venta.id, metodo=metodo, monto=monto))
 
     for linea in lineas:
         db.add(
@@ -183,6 +307,43 @@ def registrar_venta(
                 )
 
     return venta
+
+
+def crear_comanda_para_llevar(
+    db: Session, venta: models.Venta, nombre: str | None
+) -> models.PedidoMesa | None:
+    """Manda a la cocina los platos de una venta de mostrador.
+
+    Sin esto, una picada vendida en la caja se cobraba y nadie la cocinaba:
+    la cocina solo mira los pedidos de las mesas. Devuelve None si la venta
+    no tenía platos (una cerveza no pasa por la cocina).
+    """
+    platos = [d for d in venta.detalles if d.plato_id is not None]
+    if not platos:
+        return None
+
+    comanda = models.PedidoMesa(
+        mesa=models.MESA_PARA_LLEVAR,
+        para_llevar=True,
+        nombre_cliente=(nombre or "").strip() or None,
+        estado=models.EstadoPedidoMesa.pagado,
+        mesero_id=venta.vendedor_id,
+        venta_id=venta.id,
+    )
+    db.add(comanda)
+    db.flush()
+
+    for detalle in platos:
+        db.add(
+            models.DetallePedidoMesa(
+                pedido_id=comanda.id,
+                plato_id=detalle.plato_id,
+                cantidad=detalle.cantidad,
+                precio_unitario=detalle.precio_unitario,
+                agregado_por_id=venta.vendedor_id,
+            )
+        )
+    return comanda
 
 
 def devolver_al_inventario(
@@ -221,6 +382,13 @@ def precio_de_venta_de(db: Session, *, producto_id: int | None, plato_id: int | 
         producto = db.get(models.Producto, producto_id)
         if producto is None:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
+        if producto.es_insumo:
+            # Si entrara a la mesa, la mesa quedaría trabada: la caja no
+            # podría cobrarla porque un insumo no se vende.
+            raise HTTPException(
+                status_code=409,
+                detail=f"{producto.nombre} es un insumo de cocina, no se vende suelto.",
+            )
         return producto.precio_de_venta
 
     plato = db.get(models.Plato, plato_id)

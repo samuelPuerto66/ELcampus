@@ -202,11 +202,11 @@ def test_lo_que_se_pida_despues_del_cambio_sí_va_al_precio_nuevo(cliente, como,
 # ------------------------------------------------------------ utilidad
 
 
-def test_el_reporte_dice_cuanto_se_gano_no_solo_cuanto_se_vendio(cliente, datos):
+def test_el_reporte_dice_cuanto_se_gano_no_solo_cuanto_se_vendio(cliente, datos, ver_resumen):
     # Cerveza: se vende a 3.500 y cuesta 2.300 → deja 1.200 cada una.
     _cobrar(cliente, datos["cerveza"].id, 10)
 
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
 
     assert resumen["total"] == 35000
     assert resumen["costo"] == 23000
@@ -215,7 +215,7 @@ def test_el_reporte_dice_cuanto_se_gano_no_solo_cuanto_se_vendio(cliente, datos)
     assert resumen["lineas_sin_costo"] == 0
 
 
-def test_la_utilidad_avisa_cuando_falta_saber_un_costo(cliente, datos):
+def test_la_utilidad_avisa_cuando_falta_saber_un_costo(cliente, datos, ver_resumen):
     # La picada no tiene costo cargado: su utilidad aparecería inflada.
     cliente.post(
         "/api/ventas",
@@ -230,32 +230,43 @@ def test_la_utilidad_avisa_cuando_falta_saber_un_costo(cliente, datos):
         },
     )
 
-    resumen = cliente.get("/api/reportes/dia").json()
+    resumen = ver_resumen()
 
     assert resumen["total"] == 52000
     assert resumen["costo"] == 4600  # solo las dos cervezas
     assert resumen["lineas_sin_costo"] == 1
 
 
-def test_cambiar_el_costo_no_reescribe_la_utilidad_de_lo_ya_vendido(cliente, como, datos):
+def test_cambiar_el_costo_no_reescribe_la_utilidad_de_lo_ya_vendido(cliente, como, datos, ver_resumen):
     _cobrar(cliente, datos["cerveza"].id, 10)
-    antes = cliente.get("/api/reportes/dia").json()["utilidad"]
+    antes = ver_resumen()["utilidad"]
 
     como("admin").patch(f"/api/productos/{datos['cerveza'].id}", json={"costo": 3400})
 
-    assert cliente.get("/api/reportes/dia").json()["utilidad"] == antes
+    assert ver_resumen()["utilidad"] == antes
 
 
 # ------------------------------------------------------------ respaldos
 
 
-def test_la_copia_de_seguridad_queda_abierta_y_completa(tmp_path):
+def test_la_copia_de_seguridad_queda_abierta_y_completa(tmp_path, monkeypatch):
     import sqlite3
 
-    from app.respaldos import copiar
+    from sqlalchemy import create_engine
+
+    from app import respaldos
+    from app.database import Base
+
+    # Una base de prueba en un archivo, con todas las tablas: la copia se
+    # prueba sobre ella y nunca sobre la base real del negocio.
+    origen = tmp_path / "negocio.db"
+    motor = create_engine(f"sqlite:///{origen.as_posix()}")
+    Base.metadata.create_all(motor)
+    motor.dispose()
+    monkeypatch.setattr(respaldos, "DATABASE_URL", f"sqlite:///{origen.as_posix()}")
 
     destino = tmp_path / "copia.db"
-    copiar(destino)
+    respaldos.copiar(destino)
 
     con = sqlite3.connect(destino)
     try:

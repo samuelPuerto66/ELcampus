@@ -1,21 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
-import { api } from '../api/cliente'
+import {
+  enviarPedido,
+  nuevaClave,
+  quitarDeLaBandeja,
+  useBandeja,
+  type Envio,
+  type LineaEnvio,
+} from '../api/bandeja'
+import { api, SinConexion } from '../api/cliente'
 import { useEventos } from '../api/eventos'
-import type { Pedido, Plato, Producto } from '../api/tipos'
+import type { DetallePedido, Pedido, Plato, Producto } from '../api/tipos'
 import { cantidad as formatoCantidad, hora, plata } from '../formato'
+import { useSesion } from '../sesion'
+import CorregirItem from './CorregirItem'
 import Fondo from './Fondo'
+import NotaDelPlato from './NotaDelPlato'
 
 /** Una línea de lo que el mesero va anotando. Todavía no existe en el
- *  servidor: vive en el teléfono hasta que se confirma el pedido. */
-interface Linea {
+ *  servidor: vive en el teléfono hasta que se confirma el pedido.
+ *
+ *  `clave` identifica la línea, no el producto: puede haber dos líneas de
+ *  picada, una con nota y otra sin. Para saber de qué producto es, está
+ *  `queEs()`. */
+interface Linea extends LineaEnvio {
   clave: string
-  producto_id?: number
-  plato_id?: number
-  nombre: string
-  precio: number
-  cantidad: number
 }
 
 /** El borrador se guarda por mesa. Si al mesero se le bloquea la pantalla o
@@ -40,14 +50,39 @@ function guardarBorrador(mesa: string, lineas: Linea[]) {
   }
 }
 
+/** El menú se guarda en el celular cada vez que se carga bien. Si el mesero
+ *  abre una mesa justo cuando no hay señal, igual puede tomar el pedido. */
+const LLAVE_MENU = 'elcampus.menu'
+
+interface Menu {
+  platos: Plato[]
+  productos: Producto[]
+}
+
+function leerMenu(): Menu | null {
+  try {
+    const guardado = localStorage.getItem(LLAVE_MENU)
+    return guardado ? (JSON.parse(guardado) as Menu) : null
+  } catch {
+    return null
+  }
+}
+
+/** De qué producto o plato es una línea, sin importar la nota. */
+const queEs = (l: { producto_id?: number; plato_id?: number }) =>
+  l.plato_id ? `plato-${l.plato_id}` : `producto-${l.producto_id}`
+
+const totalDe = (lineas: LineaEnvio[]) =>
+  lineas.reduce((suma, l) => suma + l.precio * l.cantidad, 0)
+
 export default function Mesa() {
   const { numero = '' } = useParams()
   const navegar = useNavigate()
 
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [cargando, setCargando] = useState(true)
-  const [platos, setPlatos] = useState<Plato[]>([])
-  const [productos, setProductos] = useState<Producto[]>([])
+  const [sinSenal, setSinSenal] = useState(false)
+  const [menu, setMenu] = useState<Menu>(() => leerMenu() ?? { platos: [], productos: [] })
   const [borrador, setBorrador] = useState<Linea[]>(() => leerBorrador(numero))
   const [eligiendo, setEligiendo] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
@@ -55,13 +90,27 @@ export default function Mesa() {
   const [subiendo, setSubiendo] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [listo, setListo] = useState<string | null>(null)
+  // La línea del borrador a la que se le está poniendo nota.
+  const [conNota, setConNota] = useState<Linea | null>(null)
+  // Lo ya enviado que se está corrigiendo.
+  const [corrigiendo, setCorrigiendo] = useState<DetallePedido | null>(null)
+  const { sesion } = useSesion()
+
+  const bandeja = useBandeja()
+  const deEstaMesa = useMemo(
+    () => bandeja.filter((e) => e.mesa === Number(numero)),
+    [bandeja, numero],
+  )
+  const enEspera = deEstaMesa.filter((e) => !e.rechazo)
+  const rechazados = deEstaMesa.filter((e) => e.rechazo)
 
   const cargar = useCallback(async () => {
     try {
       setPedido(await api.get<Pedido | null>(`/pedidos/mesa/${numero}`))
-      setError(null)
+      setSinSenal(false)
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar la mesa.')
+      if (fallo instanceof SinConexion) setSinSenal(true)
+      else setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar la mesa.')
     } finally {
       setCargando(false)
     }
@@ -69,16 +118,40 @@ export default function Mesa() {
 
   useEffect(() => {
     void cargar()
-    void api.get<Plato[]>('/platos').then(setPlatos).catch(() => undefined)
-    void api.get<Producto[]>('/productos').then(setProductos).catch(() => undefined)
+    Promise.all([api.get<Plato[]>('/platos'), api.get<Producto[]>('/productos')])
+      .then(([platos, productos]) => {
+        const nuevo = { platos, productos }
+        setMenu(nuevo)
+        try {
+          localStorage.setItem(LLAVE_MENU, JSON.stringify(nuevo))
+        } catch {
+          /* sin espacio: se usa el que hay en memoria */
+        }
+      })
+      .catch(() => undefined)
   }, [cargar])
 
-  // Cuando la cocina marca un plato listo, el mesero lo ve sin refrescar.
+  // La mesa se vuelve a leer cuando algo le pasa: la cocina marcó un plato,
+  // la caja la cobró, o llegó un pedido que estaba esperando señal.
   useEventos((aviso) => {
-    if (aviso.evento === 'plato_listo' && aviso.datos.mesa === Number(numero)) {
+    if (aviso.evento === 'reconectado' || aviso.datos.mesa === Number(numero)) {
       void cargar()
     }
   })
+
+  // Cuando sale algo de la bandeja es porque llegó a la caja: se vuelve a
+  // leer la mesa para mostrarlo en "Ya enviado".
+  const esperandoAntes = useRef(enEspera.length)
+  const confirmandoAhora = useRef(false)
+  useEffect(() => {
+    if (enEspera.length < esperandoAntes.current) {
+      void cargar()
+      // Si salió porque el mesero acaba de confirmar, ese aviso ya lo da
+      // confirmar(); este es para lo que llegó solo, más tarde.
+      if (!confirmandoAhora.current) setListo('Llegó a la caja lo que estaba esperando señal.')
+    }
+    esperandoAntes.current = enEspera.length
+  }, [enEspera.length, cargar])
 
   useEffect(() => {
     guardarBorrador(numero, borrador)
@@ -98,28 +171,45 @@ export default function Mesa() {
     return () => clearTimeout(reloj)
   }, [error])
 
-  const totalBorrador = useMemo(
-    () => borrador.reduce((suma, l) => suma + l.precio * l.cantidad, 0),
-    [borrador],
-  )
+  const totalBorrador = useMemo(() => totalDe(borrador), [borrador])
+  const totalEnEspera = enEspera.reduce((suma, e) => suma + totalDe(e.lineas), 0)
 
-  // Cuánto lleva cada cosa, para marcarlo en el menú.
-  const yaElegido = useMemo(
-    () => new Map(borrador.map((l) => [l.clave, l.cantidad])),
-    [borrador],
-  )
+  // Cuánto lleva de cada cosa, sumando sus líneas, para marcarlo en el menú.
+  const yaElegido = useMemo(() => {
+    const cuantos = new Map<string, number>()
+    for (const l of borrador) cuantos.set(queEs(l), (cuantos.get(queEs(l)) ?? 0) + l.cantidad)
+    return cuantos
+  }, [borrador])
 
   /** Tocar un producto lo selecciona y ya. Volver a tocarlo no suma nada:
    *  la cantidad se maneja solo con los botones + y −, que es donde el
-   *  mesero puede ver lo que está haciendo antes de subirlo. */
-  function anotar(item: { producto_id?: number; plato_id?: number; nombre: string; precio: number }) {
-    const clave = item.plato_id ? `plato-${item.plato_id}` : `producto-${item.producto_id}`
-    setBorrador((lineas) =>
-      lineas.some((l) => l.clave === clave)
-        ? lineas
-        : [...lineas, { ...item, clave, cantidad: 1 }],
-    )
+   *  mesero puede ver lo que está haciendo antes de subirlo.
+   *
+   *  La excepción: si todo lo que hay de ese plato ya lleva nota, tocarlo
+   *  abre una línea nueva sin nota ("una sin cebolla y otra normal"). */
+  function anotar(item: LineaEnvio) {
+    setBorrador((lineas) => {
+      const haySinNota = lineas.some((l) => queEs(l) === queEs(item) && !l.notas)
+      return haySinNota ? lineas : [...lineas, { ...item, clave: nuevaClave() }]
+    })
     setListo(null)
+  }
+
+  /** Pone la nota a toda la línea, o la parte: una unidad se va a una línea
+   *  nueva con la nota y el resto queda como estaba. */
+  function guardarNota(linea: Linea, nota: string | null, soloUno: boolean) {
+    setBorrador((lineas) => {
+      if (!soloUno) {
+        return lineas.map((l) =>
+          l.clave === linea.clave ? { ...l, notas: nota ?? undefined } : l,
+        )
+      }
+      const resto = lineas.map((l) =>
+        l.clave === linea.clave ? { ...l, cantidad: l.cantidad - 1 } : l,
+      )
+      return [...resto, { ...linea, clave: nuevaClave(), cantidad: 1, notas: nota ?? undefined }]
+    })
+    setConNota(null)
   }
 
   function cambiarCantidad(clave: string, nueva: number) {
@@ -133,26 +223,41 @@ export default function Mesa() {
   async function confirmar() {
     setSubiendo(true)
     setError(null)
-    try {
-      const resultado = await api.post<Pedido>('/pedidos/enviar', {
-        mesa: Number(numero),
-        items: borrador.map((l) => ({
-          producto_id: l.producto_id ?? null,
-          plato_id: l.plato_id ?? null,
-          cantidad: l.cantidad,
-        })),
-      })
-      setPedido(resultado)
-      setBorrador([])
-      setConfirmando(false)
-      setEligiendo(false)
+    const lineas: LineaEnvio[] = borrador.map(({ clave: _, ...linea }) => linea)
+
+    // enviarPedido lo guarda en la bandeja del celular antes de tocar la
+    // red. Desde ese momento ya está a salvo, así que el borrador se limpia
+    // de una: si se esperara la respuesta, durante esos segundos el pedido
+    // aparecería dos veces en pantalla y sumado dos veces al total.
+    confirmandoAhora.current = true
+    const envio = enviarPedido(Number(numero), lineas)
+    setBorrador([])
+    setConfirmando(false)
+    setEligiendo(false)
+    const resultado = await envio.finally(() => {
+      confirmandoAhora.current = false
+    })
+    setSubiendo(false)
+
+    if (resultado.estado === 'enviado') {
+      setPedido(resultado.pedido)
+      setSinSenal(false)
       setListo('Pedido enviado a la caja.')
-    } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo subir el pedido.')
-      setConfirmando(false)
-    } finally {
-      setSubiendo(false)
+    } else if (resultado.estado === 'en_cola') {
+      setSinSenal(true)
+    } else {
+      setError(resultado.motivo)
     }
+  }
+
+  /** Un pedido que el servidor no aceptó vuelve a lo anotado, para que el
+   *  mesero lo corrija en vez de perderlo. */
+  function volverAAnotar(envio: Envio) {
+    setBorrador((actuales) => [
+      ...actuales,
+      ...envio.lineas.map((linea) => ({ ...linea, clave: nuevaClave() })),
+    ])
+    quitarDeLaBandeja(envio.clave)
   }
 
   /** Abre la cuenta para leérsela al cliente. La primera vez además le
@@ -178,7 +283,7 @@ export default function Mesa() {
   if (cargando) return <p className="cargando">Cargando la mesa…</p>
 
   const ocupada = pedido !== null
-  const totalMesa = (pedido?.total ?? 0) + totalBorrador
+  const totalMesa = (pedido?.total ?? 0) + totalEnEspera + totalBorrador
 
   return (
     <div className="celular-pantalla">
@@ -189,17 +294,26 @@ export default function Mesa() {
         </button>
         <span className="marca">MESA {numero}</span>
         <span className="der pista">
-          {!ocupada
-            ? 'Libre'
-            : pedido!.estado === 'cuenta_pedida'
-              ? 'Cuenta pedida'
-              : `Abierta ${hora(pedido!.hora_apertura)}`}
+          {sinSenal && !ocupada
+            ? 'Sin señal'
+            : !ocupada
+              ? 'Libre'
+              : pedido!.estado === 'cuenta_pedida'
+                ? 'Cuenta pedida'
+                : `Abierta ${hora(pedido!.hora_apertura)}`}
         </span>
       </header>
 
       <div className="celular-cuerpo">
         {error && <p className="aviso aviso-error">{error}</p>}
         {listo && <p className="aviso aviso-ok">{listo}</p>}
+        {sinSenal && (
+          <p className="aviso aviso-atencion">
+            Sin señal con la caja. Sigue anotando: lo que confirmes se guarda en el
+            celular y se envía solo cuando vuelva el WiFi.
+          </p>
+        )}
+
         {/* ---------------------------------------- lo que ya está en la caja */}
         {ocupada && pedido!.detalles.length > 0 && (
           <section className="bloque">
@@ -217,10 +331,59 @@ export default function Mesa() {
                   </small>
                 </span>
                 <span className="cantidad-fija num">×{formatoCantidad(detalle.cantidad)}</span>
+                <button className="btn-corregir" onClick={() => setCorrigiendo(detalle)}>
+                  Corregir
+                </button>
               </div>
             ))}
           </section>
         )}
+
+        {/* ------------------------------- confirmado pero sin llegar todavía */}
+        {enEspera.length > 0 && (
+          <section className="bloque">
+            <span className="etiqueta etiqueta-espera">
+              {subiendo ? 'Enviando a la caja…' : 'Esperando señal · se envía solo'}
+            </span>
+            {enEspera.map((envio) =>
+              envio.lineas.map((linea, i) => (
+                <div key={`${envio.clave}-${i}`} className="item-pedido en-espera">
+                  <span className="item-nombre">
+                    {linea.nombre}
+                    <small className="num">
+                      {plata(linea.precio)}
+                      {linea.notas && ` · ${linea.notas}`} · anotado {hora(envio.creado)}
+                    </small>
+                  </span>
+                  <span className="cantidad-fija num">×{formatoCantidad(linea.cantidad)}</span>
+                </div>
+              )),
+            )}
+          </section>
+        )}
+
+        {/* ------------------------------------- lo que la caja no aceptó */}
+        {rechazados.map((envio) => (
+          <section key={envio.clave} className="bloque rechazado">
+            <p className="aviso aviso-error">
+              Este pedido no entró: {envio.rechazo}
+            </p>
+            {envio.lineas.map((linea, i) => (
+              <div key={i} className="item-pedido enviado">
+                <span className="item-nombre">{linea.nombre}</span>
+                <span className="cantidad-fija num">×{formatoCantidad(linea.cantidad)}</span>
+              </div>
+            ))}
+            <div className="fila-botones">
+              <button className="btn-secundario" onClick={() => volverAAnotar(envio)}>
+                Volver a anotarlo
+              </button>
+              <button className="btn-peligro" onClick={() => quitarDeLaBandeja(envio.clave)}>
+                Descartar
+              </button>
+            </div>
+          </section>
+        ))}
 
         {/* ------------------------------------------ lo que se está anotando */}
         <section className="bloque">
@@ -230,7 +393,7 @@ export default function Mesa() {
 
           {borrador.length === 0 && (
             <p className="pista">
-              {ocupada
+              {ocupada || enEspera.length > 0
                 ? 'Toca «Agregar algo más» para anotar otra ronda.'
                 : 'Esta mesa sigue libre. Se ocupa cuando envíes el primer pedido.'}
             </p>
@@ -240,7 +403,16 @@ export default function Mesa() {
             <div key={linea.clave} className="item-pedido">
               <span className="item-nombre">
                 {linea.nombre}
-                <small className="num">{plata(linea.precio)}</small>
+                <small className="num">
+                  {plata(linea.precio)}
+                  {linea.notas && <span className="nota-plato"> · {linea.notas}</span>}
+                </small>
+                {/* La nota es para la cocina: solo los platos la llevan. */}
+                {linea.plato_id && (
+                  <button className="btn-nota" onClick={() => setConNota(linea)}>
+                    {linea.notas ? 'Cambiar nota' : '+ Nota'}
+                  </button>
+                )}
               </span>
               <span className="stepper">
                 <button
@@ -277,7 +449,13 @@ export default function Mesa() {
             </button>
           </div>
           <div className="elector-lista">
-            {platos.map((plato) => {
+            {menu.platos.length === 0 && menu.productos.length === 0 && (
+              <p className="pista">
+                No se pudo cargar el menú y no hay uno guardado en este celular. Acércate
+                al WiFi y vuelve a abrir la mesa.
+              </p>
+            )}
+            {menu.platos.map((plato) => {
               const lleva = yaElegido.get(`plato-${plato.id}`)
               return (
                 <button
@@ -287,7 +465,7 @@ export default function Mesa() {
                   }`}
                   aria-pressed={Boolean(lleva)}
                   onClick={() =>
-                    anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio })
+                    anotar({ plato_id: plato.id, nombre: plato.nombre, precio: plato.precio, cantidad: 1 })
                   }
                 >
                   <b>{plato.nombre}</b>
@@ -297,7 +475,7 @@ export default function Mesa() {
                 </button>
               )
             })}
-            {productos.map((producto) => {
+            {menu.productos.map((producto) => {
               const lleva = yaElegido.get(`producto-${producto.id}`)
               return (
                 <button
@@ -309,6 +487,7 @@ export default function Mesa() {
                       producto_id: producto.id,
                       nombre: producto.nombre,
                       precio: producto.precio_de_venta,
+                      cantidad: 1,
                     })
                   }
                 >
@@ -322,6 +501,35 @@ export default function Mesa() {
         </div>
       )}
 
+      {/* ------------------------------------------- nota para la cocina */}
+      {conNota && (
+        <NotaDelPlato
+          nombre={conNota.nombre}
+          cantidad={conNota.cantidad}
+          notaActual={conNota.notas}
+          alGuardar={(nota, soloUno) => guardarNota(conNota, nota, soloUno)}
+          cancelar={() => setConNota(null)}
+        />
+      )}
+
+      {/* ---------------------------------------- corregir algo ya enviado */}
+      {corrigiendo && pedido && (
+        <CorregirItem
+          pedidoId={pedido.id}
+          detalle={corrigiendo}
+          // Si lo envió otra persona, ya se sabe que hará falta el código.
+          pideCodigo={
+            sesion?.rol !== 'administrador' && corrigiendo.agregado_por_id !== sesion?.id
+          }
+          alTerminar={(actualizado) => {
+            setPedido(actualizado)
+            setCorrigiendo(null)
+            setListo('Corregido. La caja ya tiene la cuenta nueva.')
+          }}
+          cancelar={() => setCorrigiendo(null)}
+        />
+      )}
+
       {/* ------------------------------------------- confirmar el pedido */}
       {confirmando && (
         <div className="velo" role="dialog" aria-modal="true" aria-labelledby="titulo-confirmar">
@@ -331,14 +539,17 @@ export default function Mesa() {
             </h2>
             <p className="confirmacion-nota">
               Esto es lo que va a subir a la mesa {numero}
-              {!ocupada && '. La mesa queda ocupada'}.
+              {!ocupada && enEspera.length === 0 && '. La mesa queda ocupada'}.
             </p>
 
             <div className="confirmacion-lista">
               {borrador.map((linea) => (
                 <div key={linea.clave} className="confirmacion-linea">
                   <span className="confirmacion-cantidad num">{formatoCantidad(linea.cantidad)}</span>
-                  <span className="confirmacion-nombre">{linea.nombre}</span>
+                  <span className="confirmacion-nombre">
+                    {linea.nombre}
+                    {linea.notas && <small className="nota-plato">{linea.notas}</small>}
+                  </span>
                   <span className="confirmacion-precio num">
                     {plata(linea.precio * linea.cantidad)}
                   </span>
@@ -391,6 +602,13 @@ export default function Mesa() {
               <span className="etiqueta">Total a pagar</span>
               <span className="cuenta-cifra num">{plata(pedido.total)}</span>
             </div>
+
+            {enEspera.length > 0 && (
+              <p className="aviso aviso-atencion">
+                Ojo: hay {plata(totalEnEspera)} de esta mesa que todavía no llegan a la caja
+                por falta de señal. No están en esta cuenta.
+              </p>
+            )}
 
             {borrador.length > 0 && (
               <p className="aviso aviso-atencion">

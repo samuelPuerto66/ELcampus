@@ -3,19 +3,23 @@
 Sistema de caja, inventario y pedidos para El Campus (Bar, Grill, Fun & Market).
 Supermercado entre semana, restaurante los fines de semana.
 
-Ver [`docs/plan.md`](docs/plan.md) para la arquitectura, el modelo de datos y el
-plan de trabajo por fases (documento vivo).
+**Para prenderlo:** `npm start` en esta carpeta, y listo. Los detalles están
+en [Prenderlo](#prenderlo), y cómo probarlo en [Cómo probarlo](#cómo-probarlo).
+
+Ver [`docs/plan.md`](docs/plan.md) para la arquitectura, el modelo de datos, el
+plan de trabajo por fases y lo que falta (documento vivo).
 
 ## Cómo está armado
 
 ```
 backend/     API en FastAPI + SQLite. Una sola fuente de verdad.
-apps/web/    App en React. Las tres pantallas viven aquí:
-             caja (PC), mesas (celular del mesero) y admin.
-docs/        Plan técnico.
+apps/web/    App en React. Todas las pantallas viven aquí:
+             caja (PC), mesas (celular del mesero), cocina y admin.
+docs/        Plan técnico y preguntas para el contador (DIAN).
+iniciar.mjs  Lo que corre npm start: prende todo con un solo comando.
 ```
 
-Las tres pantallas son **una sola aplicación web**. La caja no es una app
+Todas las pantallas son **una sola aplicación web**. La caja no es una app
 aparte: es el navegador en pantalla completa (modo kiosco) en el PC del
 mostrador, hablando con el servidor por `localhost`. Un solo código, una sola
 estética, y el lector de código de barras funciona igual porque se comporta
@@ -26,78 +30,79 @@ como un teclado.
 > bloque empieza desde ahí, así que funcionan sin importar dónde hayas
 > clonado el proyecto.
 
-## Instalarlo (solo la primera vez)
+## Prenderlo
 
-Recién clonado no existen `backend/.venv` ni `apps/web/node_modules`, así que
-nada arranca hasta crearlos. Hace falta **Python 3.12** y **Node 20** o más
-nuevos.
-
-**1 · Dependencias del servidor**
+Hace falta tener instalados **Python 3.12** y **Node 20**, o más nuevos. Con
+eso, en **una sola terminal** parada en la carpeta del repositorio:
 
 ```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+npm start
 ```
 
-**2 · Dependencias de la app web**
+Eso es todo, también recién clonado y después de cada `git pull`. El comando
+hace en orden lo que antes eran varios pasos a mano, cada uno solo cuando
+hace falta:
 
-```powershell
-cd apps\web
-npm install
-```
+1. Revisa que no haya otro El Campus prendido.
+2. Instala las dependencias de Python y de Node si faltan o si alguien
+   agregó una nueva. La primera vez tarda unos minutos; después, segundos.
+3. Si no hay base, la crea con datos de prueba. Si ya hay, la pone al día
+   con `migrar.py`, sin borrar nada.
+4. Si no hay código de administrador, pregunta si lo quieres poner.
+5. Prende el servidor y la app web en esa misma terminal, abre el navegador
+   y muestra la dirección para los celulares.
 
-**3 · Crear la base con datos de prueba**
+**Ctrl+C** apaga todo junto. Si cambias el código no hace falta reiniciar:
+el servidor y la app se recargan solos.
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe seed.py
-```
+Los usuarios de prueba son `admin`, `vendedor`, `mesero` y `cocina`, todos
+con clave `campus123`. **Antes de usarlo en el negocio hay que crear los
+usuarios reales y borrar estos.**
 
-Crea tres usuarios de desarrollo — `admin`, `vendedor` y `mesero`, todos con
-clave `campus123`. **Antes de usarlo en el negocio hay que crear los usuarios
-reales y borrar estos.**
+Todo lo que hace está en [`iniciar.mjs`](iniciar.mjs), explicado paso por
+paso. Para prenderlo sin que abra el navegador: `npm start -- --sin-navegador`.
 
-**4 · Poner el código de administrador** ← obligatorio
+### El código de administrador
+
+Las cuentas de administrador necesitan, además de su clave, un código
+compartido entre los administradores. **Sin él nadie puede entrar como
+admin:** el servidor responde "El código de administrador no está
+configurado". `npm start` lo pregunta mientras falte. Para ponerlo o
+cambiarlo aparte:
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe codigo_admin.py
 ```
 
-Las cuentas de administrador necesitan, además de su clave, un código
-compartido entre los administradores. **Sin este paso nadie puede entrar como
-admin:** el servidor responde "El código de administrador no está
-configurado". El script lo pide por teclado (no se ve al escribir), lo pide
-dos veces para confirmar, y guarda solo el hash en `backend/.codigo-admin`,
-que está fuera del repositorio. Si se olvida, se vuelve a correr y se pone
-uno nuevo.
+Lo pide por teclado (no se ve al escribir), dos veces para confirmar, y
+guarda solo el hash en `backend/.codigo-admin`, que está fuera del
+repositorio. Si se olvida, se vuelve a correr y se pone uno nuevo.
 
 Los vendedores y meseros no necesitan código: entran solo con nombre (o
 correo) y clave.
 
-## Levantarlo en desarrollo
+### Desde los celulares
 
-Hacen falta **dos terminales** de PowerShell abiertas al tiempo, cada una
-parada en la carpeta del repositorio. No hay que activar el entorno virtual:
-los comandos llaman directo a su Python.
+Con el celular en el mismo WiFi que el PC, abre la dirección que `npm start`
+muestra en "En los celulares" (algo como `http://192.168.1.20:5173`). La
+primera vez, Windows puede preguntar si deja pasar a Node.js: dale permitir
+en **redes privadas**, o el celular no carga.
 
-**Terminal 1 · Servidor**
+### A mano, por partes
+
+Si hace falta prender cada parte por su lado (por ejemplo, para ver el
+registro completo del servidor, que `npm start` resume), son dos terminales:
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-**Terminal 2 · App web**
-
 ```powershell
 cd apps\web
 npm run dev
 ```
-
-Luego abre http://localhost:5173. La documentación de la API queda en
-http://127.0.0.1:8000/docs.
 
 > En Windows PowerShell 5.1 el `&&` no existe: cada comando va en su propia
 > línea. Y si VS Code intenta activar el entorno virtual solo y sale un error
@@ -122,6 +127,22 @@ conviene que todo el equipo las conozca.
   de donde sale la plata.
 - **El precio se congela cuando el cliente pide.** Subir un precio con mesas
   abiertas no cambia lo que esas mesas van a pagar.
+- **La caja no cobra una mesa que cambió.** Si el mesero agrega algo
+  mientras el cajero le lee la cuenta al cliente, la caja lo muestra y el
+  servidor no deja cobrar la cifra vieja.
+- **Pagos divididos.** Mitad efectivo y mitad Nequi se registra como dos
+  pagos que tienen que sumar exacto la cuenta. El cierre de caja solo
+  espera la parte en efectivo.
+- **La propina es de los empleados.** Se registra aparte: no cuenta como
+  venta ni como utilidad, pero si la dan en efectivo sí está en el cajón.
+  Es voluntaria, así que la caja nunca la pone sola: el cajero pregunta.
+- **Todo descuento lleva motivo.** Hasta el 10% de la cuenta lo da el
+  vendedor solo; más que eso, o una cortesía completa, necesita el código de
+  un administrador. El dueño ve cada descuento y cada anulación en el
+  resumen, con quién lo hizo y por qué.
+- **Las cifras se escriben como siempre.** "350.000" son trescientos
+  cincuenta mil. Antes el sistema lo leía como 350, y un cierre de caja
+  podía reportar un faltante que no existía.
 
 ## Copias de seguridad
 
@@ -133,9 +154,31 @@ cd backend
 .\.venv\Scripts\python.exe respaldo.py
 ```
 
+Mientras el servidor esté prendido, revisa cada hora si ya está la copia
+del día; así hay copia diaria aunque el PC pase semanas sin apagarse.
+
+La copia a mano lleva la hora en el nombre (`elcampus-2026-10-06-182700.db`)
+para no pisar la copia automática del día: si alguien la hace cuando el daño
+ya está hecho, la copia buena de la mañana sigue ahí.
+
 Esto guarda en el mismo computador: protege contra un borrado o un archivo
 dañado, **no contra un robo o un incendio**. Vale la pena sincronizar la
 carpeta `respaldos/` a una nube.
+
+## Si se cae el WiFi del local
+
+El mesero puede seguir trabajando. Lo que confirma queda guardado en el
+celular y aparece en naranja como "Esperando señal"; cuando vuelve la red se
+envía solo, sin que nadie toque nada. Cada pedido lleva su propia clave, así
+que si la señal se corta justo después de enviarlo y el celular lo reintenta,
+el servidor lo reconoce y no lo cuenta dos veces.
+
+El menú también queda guardado en el celular, así que una mesa se puede
+atender aunque se abra sin señal. Lo único que no funciona sin red es
+pedir la cuenta: la caja tiene que estar enterada.
+
+Si la caja rechaza un pedido (por ejemplo, un plato que ya no existe), el
+mesero lo ve en rojo en esa mesa y puede volver a anotarlo o descartarlo.
 
 ## La cocina
 
@@ -149,6 +192,62 @@ cliente pide la cuenta. Las bebidas no aparecen: una cerveza no se cocina.
 
 El borde de cada mesa cambia de color con la espera — amarillo, naranja a
 los 10 minutos, rojo a los 20 — para que se vea de lejos qué está demorado.
+
+**Notas para la cocina.** Cada plato anotado tiene un botón "+ Nota" con
+las más comunes a un toque ("Sin cebolla", "Bien asado"). Si la línea tiene
+varios platos, el mesero escoge si la nota es para todos o "solo para 1":
+así quedan "dos picadas, una sin cebolla". La lista de notas rápidas está
+en `NotaDelPlato.tsx`.
+
+## Corregir lo que ya se envió
+
+Si el mesero mandó 3 cervezas y eran 2, toca **Corregir** en esa línea,
+escoge cuántas quitar y por qué. Las reglas son las mismas que para anular
+una venta:
+
+- **Lo propio y recién enviado** (menos de 5 minutos) se corrige solo.
+- **Lo que envió otra persona, lo que lleva más rato, o un plato que la
+  cocina ya preparó**, necesita el código de un administrador.
+- **Siempre queda escrito**: qué, cuánto, de qué mesa, quién y por qué. El
+  dueño lo ve en "Para revisar hoy".
+
+La caja también puede corregir la mesa que está cobrando, con el mismo
+diálogo. No hay ninguna otra forma de bajar la cuenta de una mesa.
+
+## Platos para llevar
+
+En la caja, el botón **Platos** muestra el menú para vender sin abrir una
+mesa. Al cobrar, los platos van solos a la cocina como "Para llevar", con
+el nombre del cliente si se escribió, y cuando la cocina los marca listos
+la caja avisa a quién hay que llamar. Si se anula la venta, la cocina deja
+de verlos.
+
+## Fiado
+
+El cuaderno de fiados del negocio, en la pestaña **Fiado** del
+administrador y en el botón **Fiados** de la caja.
+
+- **A quién se le fía lo decide el dueño.** Solo el administrador registra
+  clientes y les pone cupo (hasta cuánto pueden deber). Sin cupo no hay
+  límite; lo prudente es ponerle uno.
+- **Vender fiado** es cobrar en la caja con "Fiado" como forma de pago y
+  escoger al cliente. También se puede pagar una parte y fiar el resto, con
+  el pago dividido. La caja no deja pasar del cupo.
+- **Los abonos** se reciben en la caja. Si son en efectivo entran al cuadre
+  del turno, igual que una venta. Un abono mal registrado solo lo anula un
+  administrador.
+- **Lo que debe cada cliente no se guarda: se calcula** sumando lo fiado y
+  restando lo abonado. Si se anula una venta fiada, la deuda baja sola.
+
+El resumen del día muestra lo fiado hoy, lo abonado hoy y cuánto le deben
+al negocio en total. Lo fiado no aparece en "Cómo entró la plata", porque
+no entró.
+
+## Facturación electrónica
+
+Todavía no está programada, a propósito: antes hay que saber si el negocio
+está obligado y cómo. Las preguntas para el contador y lo que cambiaría en
+el sistema están en [`docs/facturacion-dian.md`](docs/facturacion-dian.md).
 
 ## Cargar el inventario
 
@@ -189,9 +288,13 @@ resumen del día avisa que la utilidad que muestra es mayor que la real.
 
 ## Después de traer cambios nuevos (`git pull`)
 
+`npm start` ya lo hace solo: instala las dependencias nuevas y pone la base
+al día. Lo de abajo es por si hace falta entenderlo o hacerlo a mano.
+
 Si el esquema de la base cambió, la base que ya tienes en el disco **no se
 actualiza sola**: `create_all` crea tablas nuevas pero no agrega columnas a
-las que ya existen. Para ponerla al día sin perder lo que tiene dentro:
+las que ya existen. Para eso está `migrar.py`, que la pone al día sin perder
+lo que tiene dentro:
 
 ```powershell
 cd backend
@@ -199,19 +302,62 @@ cd backend
 ```
 
 Se puede correr las veces que haga falta: cada paso mira primero si ya está
-hecho, y si no hay nada que cambiar lo dice y no toca nada. Si te saltas este
-paso después de un cambio de esquema, la app falla al leer columnas que
-todavía no existen.
+hecho, y si no hay nada que cambiar lo dice y no toca nada. Si la base no se
+pone al día después de un cambio de esquema, la app falla al leer columnas
+que todavía no existen.
 
-Vale la pena correr también `pip install -r requirements.txt` y `npm install`
-por si entraron dependencias nuevas.
+## Cómo probarlo
 
-## Pruebas
+### Pruebas automáticas
+
+Revisan solas las reglas del servidor: cobros, caja, fiado, pedidos,
+inventario. Se corren antes de cada commit; tardan unos 4 minutos y tienen
+que pasar todas.
 
 ```powershell
 cd backend
 .\.venv\Scripts\python.exe -m pytest
 ```
+
+Y para revisar que la app web compila sin errores:
+
+```powershell
+cd apps\web
+npm run build
+```
+
+### Pruebas a mano
+
+Con `npm start` prendido, el PC hace de caja y un celular de mesero. Se
+prueba en tres rondas:
+
+1. **Que cada cosa funcione.**
+   - *Caja* (`vendedor`): abrir el turno; escribir el código `7701234567890`
+     (sale la Cerveza Aguila); cobrar en efectivo y revisar el vuelto; cobrar
+     mitad efectivo y mitad Nequi; dar un descuento de 5 % (pasa sin código)
+     y uno de 20 % (pide código); vender una Picada para llevar; anular una
+     venta.
+   - *Mesero* (`mesero`, en el celular): abrir una mesa; anotar 2 Picadas con
+     la nota "Sin cebolla" solo para 1; enviar; corregir algo recién enviado;
+     pedir la cuenta, que debe saltar sola a la caja.
+   - *Cocina* (`cocina`): ver el pedido con su nota y marcarlo listo.
+   - *Administrador* (`admin` y el código): crear un cliente de fiado con
+     cupo; desde la caja, venderle fiado y recibirle un abono.
+   - *Cierre*: cerrar el turno contando la plata. El resumen del
+     administrador y "Para revisar hoy" tienen que cuadrar con lo que se hizo.
+2. **Tratar de romperla.** Apagar el WiFi del celular y enviar un pedido:
+   debe quedar esperando y llegar solo, una sola vez, cuando vuelva la señal.
+   Tocar "Enviar" varias veces seguidas. Apagar el servidor con Ctrl+C y
+   volverlo a prender. Agregarle algo a una mesa mientras la caja la cobra.
+   Fiar más del cupo.
+3. **Simulacro de un sábado.** Con varias personas, los celulares reales, el
+   lector de código de barras y el WiFi del local: dos horas como si fuera
+   una noche de verdad, anotando en papel cada cobro. Al cerrar, la caja
+   tiene que cuadrar con el papel. Vale anotar también lo que fue lento o
+   confuso, no solo los errores.
+
+Si algo falla, anota con qué usuario, qué hiciste paso a paso, qué esperabas
+y qué salió, con un pantallazo del mensaje.
 
 ## En el negocio (producción)
 
@@ -232,15 +378,30 @@ puerto abierto a internet.
 
 ## Si algo falla
 
-**`WinError 10013` al levantar el servidor** — el puerto 8000 ya está ocupado,
-casi siempre por otra instancia que quedó corriendo. Para ver quién lo tiene:
+**"El puerto 8000 ya está ocupado"** (o `WinError 10013`, o el 5173) — casi
+siempre es otro El Campus que quedó prendido en otra terminal: apágalo allá
+con Ctrl+C. Para ver quién tiene el puerto:
 
 ```powershell
 Get-NetTCPConnection -LocalPort 8000 -State Listen
 ```
 
-**"El código de administrador no está configurado"** — falta el paso 4 de la
-instalación.
+**`npm start` dice que la ejecución de scripts está deshabilitada** — es
+PowerShell bloqueando a npm, no un problema del proyecto. Corre lo mismo sin
+pasar por npm:
+
+```powershell
+node iniciar.mjs
+```
+
+**El celular no carga la página** — revisa que esté en el mismo WiFi que el
+PC y que Windows deje pasar a Node.js en redes privadas (Firewall de Windows
+→ Permitir una aplicación).
+
+**"El código de administrador no está configurado"** — falta ponerlo: vuelve
+a correr `npm start` y responde que sí cuando lo pregunte (ver "El código de
+administrador", arriba).
 
 **La app carga pero falla al entrar o al leer usuarios** — es probable que la
-base esté desactualizada. Corre `migrar.py`.
+base esté desactualizada. Apaga y vuelve a correr `npm start`, que la pone al
+día; si sigue fallando, mira el error que muestra `migrar.py` al arrancar.

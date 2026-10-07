@@ -60,7 +60,9 @@ export default function Cocina() {
 
   if (!items) return <p className="cargando">{error ?? 'Cargando la comanda…'}</p>
 
-  const mesas = [...new Set(items.map((i) => i.mesa))].sort((a, b) => a - b)
+  // Una tarjeta por pedido: cada mesa, y cada pedido para llevar por su
+  // lado (dos para llevar no se mezclan aunque ninguno tenga mesa).
+  const pedidos = [...new Set(items.map((i) => i.pedido_id))]
 
   return (
     <div className="cocina">
@@ -87,20 +89,28 @@ export default function Cocina() {
         </div>
       ) : (
         <div className="cocina-mesas">
-          {mesas.map((mesa) => {
-            const deLaMesa = items.filter((i) => i.mesa === mesa)
-            const masViejo = Math.max(...deLaMesa.map((i) => esperando(i.creado_en)))
+          {pedidos.map((pedidoId) => {
+            const delPedido = items.filter((i) => i.pedido_id === pedidoId)
+            const masViejo = Math.max(...delPedido.map((i) => esperando(i.creado_en)))
+            const { para_llevar, nombre_cliente, mesa } = delPedido[0]
 
             return (
-              <section key={mesa} className={`comanda ${urgencia(masViejo)}`}>
+              <section
+                key={pedidoId}
+                className={`comanda ${urgencia(masViejo)} ${para_llevar ? 'para-llevar' : ''}`}
+              >
                 <header className="comanda-cabeza">
-                  <span className="comanda-mesa">Mesa {mesa}</span>
+                  <span className="comanda-mesa">
+                    {para_llevar
+                      ? `Para llevar${nombre_cliente ? ` · ${nombre_cliente}` : ''}`
+                      : `Mesa ${mesa}`}
+                  </span>
                   <span className="comanda-espera">
                     {masViejo === 0 ? 'recién' : `hace ${masViejo} min`}
                   </span>
                 </header>
 
-                {deLaMesa.map((item) => (
+                {delPedido.map((item) => (
                   <button
                     key={item.id}
                     className="comanda-item"

@@ -1036,8 +1036,8 @@ td.vacio {
   margin: 0;
 }
 
-/* Lo que ya se envió no se puede tocar desde el celular: para cambiarlo
-   hay que hablar con la caja. Se muestra apagado a propósito. */
+/* Lo que ya se envió se ve apagado: ya está en la cuenta. Cambiarlo pasa
+   por el botón Corregir, que deja registro de quién y por qué. */
 .item-pedido.enviado {
   opacity: 0.72;
 }
@@ -1733,4 +1733,482 @@ td.vacio {
   width: 18px;
   height: 18px;
   flex: none;
+}
+
+/* ================================================ caja: corregir y cobrar */
+/* Corregir una línea mal escaneada sin tener que cobrarla y anularla. */
+th.acciones,
+td.acciones {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+.btn-quitar {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--humo-tenue);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+.btn-quitar:hover {
+  color: var(--salsa);
+  border-color: rgba(224, 75, 58, 0.45);
+}
+.stepper-chico {
+  display: inline-flex;
+  gap: 6px;
+}
+.stepper-chico button {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  border-radius: 3px;
+}
+
+.desglose {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--humo);
+}
+
+/* Descuento y propina: van plegados para que el cobro normal siga siendo
+   escanear y F12. Solo aparecen cuando el cajero los pide. */
+.btn-enlace {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  color: var(--humo);
+  font-size: 13px;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+.btn-enlace:hover {
+  color: var(--espuma);
+}
+.opcion-cobro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 11px 13px;
+}
+.opcion-cabeza,
+.opcion-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.opcion-fila .campo-cobro {
+  flex: 1;
+  min-width: 0;
+}
+.campo-cobro {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.campo-cobro.num {
+  font-family: var(--mono);
+  text-align: right;
+}
+.pagos.tres {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.pagos.tres .pago {
+  font-size: 12px;
+}
+
+.division-campo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-resto {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--humo);
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.vuelto .fila.destacada.pendiente {
+  color: var(--llama);
+}
+.por-que-no {
+  font-size: 12px;
+  color: var(--llama);
+  text-align: center;
+  margin-top: -6px;
+}
+
+/* La cifra tal como la entendió el sistema, debajo de lo que se escribió:
+   "350.000" tiene que verse como $350.000 antes de guardarse. */
+.lectura-plata {
+  font-size: 13px;
+  color: var(--humo);
+}
+.lectura-plata b {
+  color: var(--neon);
+  font-family: var(--mono);
+}
+
+/* ============================================ el mesero sin señal */
+/* Lo confirmado que todavía no llega a la caja: se ve distinto de lo ya
+   enviado para que el mesero sepa que está guardado, pero no entregado. */
+.etiqueta-espera {
+  color: var(--llama);
+}
+.item-pedido.en-espera {
+  border-bottom-style: dashed;
+  border-bottom-color: rgba(255, 122, 26, 0.35);
+}
+.item-pedido.en-espera .item-nombre small {
+  color: var(--llama);
+}
+.bloque.rechazado {
+  border: 1px solid rgba(224, 75, 58, 0.45);
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+.fila-botones {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 6px;
+}
+.fila-botones .btn-secundario {
+  width: auto;
+  padding: 9px 14px;
+}
+.mesa {
+  position: relative;
+}
+.mesa-bandeja {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  font-size: 12px;
+  color: var(--llama);
+}
+.mesa-bandeja.mal {
+  color: var(--salsa);
+  font-weight: 700;
+}
+
+/* ============================================ panel: lo que hay que revisar */
+.chip-cuadra {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--verde);
+  border: 1px solid rgba(59, 178, 115, 0.45);
+  background: rgba(59, 178, 115, 0.1);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+.chip-sobra {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--neon-suave);
+  border: 1px solid rgba(255, 232, 122, 0.4);
+  background: rgba(255, 232, 122, 0.08);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+.novedad {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+.novedad-tipo {
+  flex: none;
+  min-width: 82px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--llama);
+  padding-top: 3px;
+}
+.novedad-tipo.anulacion {
+  color: var(--salsa);
+}
+.novedad-texto b {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.novedad-texto small {
+  display: block;
+  color: var(--humo);
+  font-size: 12.5px;
+}
+
+/* ======================================== notas y correcciones de mesa */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface-2);
+  color: var(--humo);
+  font-size: 12.5px;
+  padding: 6px 11px;
+}
+.chip.activo {
+  border-color: var(--neon);
+  color: var(--neon);
+  background: rgba(255, 199, 0, 0.1);
+}
+.confirmacion.corregir input {
+  width: 100%;
+}
+.confirmacion-botones:has(> :nth-child(3)) {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.corregir-cuantos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+/* Rojo lleno: quitar algo de una cuenta es la acción destructiva. */
+.btn-peligro-lleno {
+  background: var(--salsa);
+  color: var(--espuma);
+  border: none;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 13px;
+  width: 100%;
+}
+.btn-peligro-lleno:disabled {
+  opacity: 0.4;
+}
+.btn-corregir {
+  flex: none;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--humo);
+  font-size: 12px;
+  padding: 5px 9px;
+}
+.btn-corregir:hover {
+  color: var(--salsa);
+  border-color: rgba(224, 75, 58, 0.45);
+}
+/* "Corregir" tiene que poder tocarse aunque la fila se vea apagada. */
+.item-pedido.enviado .btn-corregir {
+  opacity: 1;
+}
+.btn-nota {
+  display: block;
+  margin-top: 3px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--neon-calido);
+  font-size: 12px;
+  font-weight: 600;
+}
+.nota-plato {
+  color: var(--llama);
+}
+small.nota-plato {
+  display: block;
+  font-size: 12px;
+}
+
+/* ============================================ caja: platos y fiado */
+.escaneo-fila {
+  display: flex;
+  gap: 8px;
+}
+.escaneo-fila .btn-secundario {
+  flex: none;
+}
+.btn-secundario.activo {
+  border-color: var(--neon);
+  color: var(--neon);
+}
+.platos-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+.platos-caja-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.para-llevar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--llama);
+}
+.para-llevar input {
+  flex: 1;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+.pago.ancho {
+  grid-column: span 2;
+}
+select {
+  font-family: var(--body);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--espuma);
+  padding: 9px 10px;
+  font-size: 14px;
+}
+.comanda.para-llevar .comanda-mesa {
+  color: var(--llama);
+}
+
+/* El cuaderno de fiados abierto encima de la caja. */
+.panel-flotante {
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+/* ================================================== cuaderno de fiados */
+.fiados {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 760px) {
+  .fiados {
+    grid-template-columns: 1fr;
+  }
+}
+.fiados-lista,
+.fiados-cuenta,
+.cuenta-fiado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.fiados-total {
+  margin: 0;
+  font-size: 14px;
+  color: var(--humo);
+}
+.fiados-total b {
+  color: var(--llama);
+  font-family: var(--mono);
+  font-size: 18px;
+}
+.fila-fiado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--espuma);
+  text-align: left;
+  font-size: 14.5px;
+}
+.fila-fiado.elegido {
+  border-color: var(--neon);
+}
+.fila-fiado.apagado {
+  opacity: 0.55;
+}
+.fila-fiado-nombre small {
+  display: block;
+  font-size: 12px;
+  color: var(--humo-tenue);
+}
+.debe {
+  color: var(--llama);
+}
+.al-dia {
+  color: var(--verde);
+  font-size: 12px;
+}
+.cuenta-fiado-cabeza {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.cuenta-fiado-cabeza b {
+  font-family: var(--display);
+  font-size: 20px;
+}
+.cuenta-fiado-cabeza small {
+  display: block;
+  font-size: 12px;
+  color: var(--humo);
+}
+.cuenta-fiado-saldo {
+  text-align: right;
+}
+.cuenta-fiado-saldo b {
+  font-family: var(--mono);
+  font-size: 24px;
+}
+.movimiento {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+.movimiento-texto {
+  flex: 1;
+  min-width: 0;
+}
+.movimiento-texto small {
+  display: block;
+  font-size: 12px;
+  color: var(--humo-tenue);
+}
+.movimiento-monto {
+  font-family: var(--mono);
+}
+.movimiento.fiado .movimiento-monto {
+  color: var(--llama);
+}
+.movimiento.abono .movimiento-monto {
+  color: var(--verde);
+}
+.movimiento.anulado {
+  opacity: 0.5;
+}
+.movimiento.anulado .movimiento-monto {
+  text-decoration: line-through;
 }

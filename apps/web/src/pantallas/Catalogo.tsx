@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { api } from '../api/cliente'
 import type { Plato, Producto } from '../api/tipos'
-import { plata } from '../formato'
+import { leerPesos, plata } from '../formato'
 import Receta from './Receta'
 
 interface Fila {
@@ -78,8 +78,9 @@ export default function Catalogo() {
 
   async function guardar(fila: Fila) {
     const escrito = edicion[fila.clave]
-    const costo = escrito.trim() === '' ? null : Number(escrito.replace(',', '.'))
-    if (costo !== null && (Number.isNaN(costo) || costo < 0)) {
+    // "2.300" son dos mil trescientos, no 2,3.
+    const costo = escrito.trim() === '' ? null : leerPesos(escrito)
+    if (escrito.trim() !== '' && costo === null) {
       setError(`El costo de ${fila.nombre} no es un número válido.`)
       return
     }

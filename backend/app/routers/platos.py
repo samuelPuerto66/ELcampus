@@ -166,5 +166,16 @@ def borrar_plato(
             detail="Este plato ya tiene ventas registradas. Cámbiale las fechas en vez de borrarlo.",
         )
 
+    en_una_mesa = db.scalar(
+        select(models.DetallePedidoMesa.id)
+        .where(models.DetallePedidoMesa.plato_id == plato_id)
+        .limit(1)
+    )
+    if en_una_mesa:
+        raise HTTPException(
+            status_code=409,
+            detail="Hay una mesa que pidió este plato y todavía no ha pagado. Bórralo cuando la cobren.",
+        )
+
     db.delete(plato)
     db.commit()

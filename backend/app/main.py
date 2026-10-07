@@ -1,4 +1,5 @@
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 import jwt
 from fastapi import APIRouter, FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -12,11 +13,12 @@ from .auth import leer_token
 from .config import WEB_DIST
 from .database import Base, engine
 from .eventos import tablero
-from .respaldos import hacer_respaldo_si_falta
+from .respaldos import hacer_respaldo_si_falta, respaldar_cada_dia
 from .routers import (
     auth,
     caja,
     cocina,
+    fiado,
     inventario,
     pedidos,
     platos,
@@ -37,7 +39,12 @@ async def ciclo_de_vida(_: FastAPI):
     copia = hacer_respaldo_si_falta()
     if copia is not None:
         print(f"Copia de seguridad del día: {copia}")
+
+    vigilante = asyncio.create_task(respaldar_cada_dia())
     yield
+    vigilante.cancel()
+    with suppress(asyncio.CancelledError):
+        await vigilante
 
 
 app = FastAPI(title="El Campus API", version="0.3.0", lifespan=ciclo_de_vida)
@@ -80,6 +87,7 @@ api.include_router(pedidos.router)
 api.include_router(cocina.router)
 api.include_router(inventario.router)
 api.include_router(caja.router)
+api.include_router(fiado.router)
 api.include_router(reportes.router)
 
 

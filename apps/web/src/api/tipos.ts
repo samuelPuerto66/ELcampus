@@ -1,6 +1,9 @@
 export type Rol = 'administrador' | 'vendedor' | 'mesero' | 'cocina'
 export type EstadoCocina = 'pendiente' | 'listo'
-export type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'tarjeta'
+/** 'fiado': la plata no entró, el cliente quedó debiendo. */
+export type MetodoPago = 'efectivo' | 'nequi' | 'daviplata' | 'tarjeta' | 'fiado'
+/** Lo que queda en la venta: 'mixto' cuando se pagó por más de un lado. */
+export type MetodoDeVenta = MetodoPago | 'mixto'
 export type TipoCobro = 'mostrador' | 'restaurante'
 export type EstadoPedido = 'abierto' | 'cuenta_pedida' | 'pagado'
 
@@ -81,13 +84,25 @@ export interface DetalleVenta {
   subtotal: number
 }
 
+export interface Pago {
+  metodo: MetodoPago
+  monto: number
+}
+
 export interface Venta {
   id: number
   fecha_hora: string
   tipo: TipoCobro
   mesa: number | null
+  subtotal: number
+  descuento: number
+  motivo_descuento: string | null
   total: number
-  metodo_pago: MetodoPago
+  propina: number
+  a_cobrar: number
+  metodo_pago: MetodoDeVenta
+  pagos: Pago[]
+  cliente_fiado_id: number | null
   vendedor_id: number
   anulada: boolean
   motivo_anulacion: string | null
@@ -97,6 +112,8 @@ export interface Venta {
 export interface DetallePedido extends DetalleVenta {
   notas: string | null
   estado_cocina: EstadoCocina
+  /** Quién mandó lo último de esta línea. */
+  agregado_por_id: number | null
 }
 
 export interface Pedido {
@@ -115,6 +132,9 @@ export interface ItemComanda {
   id: number
   pedido_id: number
   mesa: number
+  /** Vendido en la caja para llevar: no tiene mesa. */
+  para_llevar: boolean
+  nombre_cliente: string | null
   nombre: string
   cantidad: number
   notas: string | null
@@ -132,6 +152,7 @@ export interface TurnoCaja {
   efectivo_contado: number | null
   diferencia: number | null
   usuario_id: number
+  usuario_nombre: string
   estado: 'abierto' | 'cerrado'
 }
 
@@ -147,6 +168,57 @@ export interface ResumenDia {
   utilidad: number
   margen_porcentaje: number | null
   lineas_sin_costo: number
+  descuentos: number
+  cantidad_descuentos: number
+  propinas: number
+  fiado_del_dia: number
+  abonos_del_dia: number
+  te_deben: number
+}
+
+export interface Novedad {
+  /** El número de la venta, o el de la corrección. */
+  id: number
+  hora: string
+  quien: string
+  monto: number
+  motivo: string | null
+  con_codigo: boolean
+  /** Solo en las correcciones: qué se quitó y de qué mesa. */
+  que: string | null
+}
+
+export interface NovedadesDia {
+  fecha: string
+  anulaciones: Novedad[]
+  descuentos: Novedad[]
+  correcciones: Novedad[]
+}
+
+// ------------------------------------------------------------------ fiado
+
+export interface ClienteFiado {
+  id: number
+  nombre: string
+  telefono: string | null
+  /** Hasta cuánto puede deber. null: sin límite. */
+  cupo: number | null
+  activo: boolean
+  /** Lo que debe hoy. */
+  saldo: number
+}
+
+export interface MovimientoFiado {
+  tipo: 'fiado' | 'abono'
+  id: number
+  fecha: string
+  monto: number
+  detalle: string
+  anulado: boolean
+}
+
+export interface CuentaFiado extends ClienteFiado {
+  movimientos: MovimientoFiado[]
 }
 
 export interface Comparacion {

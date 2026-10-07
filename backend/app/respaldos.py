@@ -7,12 +7,18 @@ La copia se hace con el mecanismo propio de SQLite, no copiando el archivo:
 así queda consistente aunque alguien esté cobrando en ese mismo momento.
 """
 
+import asyncio
 import sqlite3
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .config import CARPETA_RESPALDOS, DATABASE_URL, DIAS_DE_RESPALDO
+from .config import (
+    CARPETA_RESPALDOS,
+    DATABASE_URL,
+    DIAS_DE_RESPALDO,
+    MINUTOS_ENTRE_REVISIONES_DE_RESPALDO,
+)
 
 
 def ruta_de_la_base() -> Path:
@@ -22,7 +28,18 @@ def ruta_de_la_base() -> Path:
 
 
 def respaldo_del_dia() -> Path:
+    """La copia automática: una por día."""
     return CARPETA_RESPALDOS / f"elcampus-{date.today():%Y-%m-%d}.db"
+
+
+def respaldo_manual() -> Path:
+    """Una copia a mano, con la hora en el nombre.
+
+    Lleva la hora para no pisar la copia automática del día: si alguien
+    hace una copia "antes de algo riesgoso" cuando el daño ya está hecho,
+    la copia buena de la mañana tiene que seguir ahí.
+    """
+    return CARPETA_RESPALDOS / f"elcampus-{datetime.now():%Y-%m-%d-%H%M%S}.db"
 
 
 def copiar(destino: Path) -> int:
@@ -50,8 +67,9 @@ def borrar_viejas() -> list[str]:
     borradas = []
     for archivo in CARPETA_RESPALDOS.glob("elcampus-*.db"):
         try:
+            # Los primeros 10 caracteres son la fecha, tenga o no la hora.
             cuando = datetime.strptime(
-                archivo.stem.removeprefix("elcampus-"), "%Y-%m-%d"
+                archivo.stem.removeprefix("elcampus-")[:10], "%Y-%m-%d"
             ).date()
         except ValueError:
             continue
@@ -81,3 +99,18 @@ def hacer_respaldo_si_falta() -> Path | None:
     except Exception:
         # Un respaldo que falla nunca debe impedir que la caja abra.
         return None
+
+
+async def respaldar_cada_dia() -> None:
+    """Revisa de vez en cuando si ya está la copia de hoy, y si no, la hace.
+
+    Respaldar solo al arrancar no basta: en temporada alta el PC de la caja
+    puede quedarse prendido semanas, y la única copia sería la del día en
+    que se encendió.
+    """
+    while True:
+        await asyncio.sleep(MINUTOS_ENTRE_REVISIONES_DE_RESPALDO * 60)
+        # En otro hilo: copiar la base no debe frenar los cobros.
+        copia = await asyncio.to_thread(hacer_respaldo_si_falta)
+        if copia is not None:
+            print(f"Copia de seguridad del día: {copia}")

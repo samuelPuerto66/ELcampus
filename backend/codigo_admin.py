@@ -6,6 +6,9 @@ Lo pide por teclado sin mostrarlo y guarda solo el hash en backend/.codigo-admin
 que está fuera del repositorio. Nadie —ni quien lea el código, ni quien abra la
 base de datos— puede recuperar el código a partir de lo guardado: si se olvida,
 se vuelve a correr este script y se pone uno nuevo.
+
+`npm start` lo llama con --si-falta: si ya hay código no hace nada, y si no
+hay, pregunta si se quiere poner ahora.
 """
 
 import getpass
@@ -17,10 +20,21 @@ from app.security import hash_password
 MINIMO = 6
 
 
+def dice_que_si(pregunta: str) -> bool:
+    return input(pregunta).strip().lower() in ("s", "si", "sí")
+
+
 def main() -> int:
-    if hash_del_codigo_admin():
+    if "--si-falta" in sys.argv[1:]:
+        if hash_del_codigo_admin():
+            return 0
+        print("Todavía no hay código de administrador: sin él nadie puede entrar como admin.")
+        if not dice_que_si("¿Lo pones ahora? (s/n): "):
+            print("Bueno. La próxima vez que corras npm start te lo vuelvo a preguntar.")
+            return 0
+    elif hash_del_codigo_admin():
         print("Ya hay un código configurado. Si sigues, lo reemplazas.")
-        if input("¿Continuar? (s/n): ").strip().lower() not in ("s", "si", "sí"):
+        if not dice_que_si("¿Continuar? (s/n): "):
             print("Sin cambios.")
             return 0
 
@@ -40,4 +54,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    # Ctrl+C, o que se acabe la entrada sin respuesta.
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelado. No se guardó nada.")
+        sys.exit(130)

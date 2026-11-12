@@ -1,0 +1,5 @@
+# Los .bat tienen que quedar con finales de línea de Windows (CRLF) en todos
+# los PC. Con finales de Unix, cmd.exe no encuentra las etiquetas de salto
+# (:esperar) y el archivo falla con "no encuentra la etiqueta por lotes".
+*.bat text eol=crlf
+*.cmd text eol=crlf

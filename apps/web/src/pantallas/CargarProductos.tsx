@@ -41,10 +41,18 @@ export default function CargarProductos() {
 
   // Se carga en tandas largas: el cursor vuelve solo al escáner para poder
   // encadenar producto tras producto sin tocar el mouse.
+  //
+  // Depende del código de barras y no del borrador entero a propósito. El
+  // borrador es un objeto que se vuelve a crear con cada tecla, así que
+  // React lo veía siempre como "cambió" y volvía a mandar el cursor al
+  // nombre: uno escribía el primer número del precio y el resto se iba a
+  // parar al nombre. Con el código solo se mueve cuando aparece un producto
+  // distinto, que es cuando de verdad hay que reubicarlo.
+  const codigoDelBorrador = borrador?.codigo_barras ?? null
   useEffect(() => {
-    if (borrador) campoNombre.current?.focus()
+    if (codigoDelBorrador) campoNombre.current?.focus()
     else campoCodigo.current?.focus()
-  }, [borrador])
+  }, [codigoDelBorrador])
 
   async function escanear(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return

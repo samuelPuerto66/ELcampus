@@ -12,6 +12,10 @@ interface Fila {
   detalle: string
   precio: number
   costo: number | null
+  /** Cómo se llama el precio de venta en el servidor. Lo que se vende por
+   *  kilo lo guarda en `precio_por_kg`; mandarlo como `precio` le dañaría
+   *  el precio al producto. */
+  campoPrecio: 'precio' | 'precio_por_kg'
   platoId?: number
   esInsumo?: boolean
 }
@@ -28,6 +32,7 @@ function deProducto(p: Producto): Fila {
         : (p.categoria ?? 'producto'),
     precio: p.precio_de_venta,
     costo: p.costo,
+    campoPrecio: p.tipo_venta === 'peso' ? 'precio_por_kg' : 'precio',
     esInsumo: p.es_insumo,
   }
 }
@@ -40,6 +45,7 @@ function dePlato(p: Plato): Fila {
     detalle: p.tipo === 'especial' ? 'especial' : 'plato fijo',
     precio: p.precio,
     costo: p.costo_efectivo ?? p.costo,
+    campoPrecio: 'precio',
     platoId: p.id,
   }
 }
@@ -50,9 +56,15 @@ function margen(precio: number, costo: number | null) {
   return { deja: precio - costo, porcentaje: Math.round(((precio - costo) / precio) * 100) }
 }
 
+/** Lo que la persona lleva escrito en una fila y todavía no ha guardado. */
+interface Cambio {
+  precio?: string
+  costo?: string
+}
+
 export default function Catalogo() {
   const [filas, setFilas] = useState<Fila[] | null>(null)
-  const [edicion, setEdicion] = useState<Record<string, string>>({})
+  const [edicion, setEdicion] = useState<Record<string, Cambio>>({})
   const [guardando, setGuardando] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [insumos, setInsumos] = useState<Producto[]>([])
@@ -77,17 +89,36 @@ export default function Catalogo() {
   }, [])
 
   async function guardar(fila: Fila) {
-    const escrito = edicion[fila.clave]
+    const cambio = edicion[fila.clave] ?? {}
+    const cambios: Record<string, number | null> = {}
+
     // "2.300" son dos mil trescientos, no 2,3.
-    const costo = escrito.trim() === '' ? null : leerPesos(escrito)
-    if (escrito.trim() !== '' && costo === null) {
-      setError(`El costo de ${fila.nombre} no es un número válido.`)
-      return
+    if (cambio.precio !== undefined) {
+      const precio = leerPesos(cambio.precio)
+      if (precio === null || precio <= 0) {
+        setError(`El precio de venta de ${fila.nombre} tiene que ser un número mayor que cero.`)
+        return
+      }
+      cambios[fila.campoPrecio] = precio
     }
 
+    if (cambio.costo !== undefined) {
+      // El costo sí se puede dejar en blanco: es "todavía no lo sé".
+      const vacio = cambio.costo.trim() === ''
+      const costo = vacio ? null : leerPesos(cambio.costo)
+      if (!vacio && (costo === null || costo < 0)) {
+        setError(`El costo de ${fila.nombre} no es un número válido.`)
+        return
+      }
+      cambios.costo = costo
+    }
+
+    if (Object.keys(cambios).length === 0) return
+
     setGuardando(fila.clave)
+    setError(null)
     try {
-      await api.patch(fila.ruta, { costo })
+      await api.patch(fila.ruta, cambios)
       setEdicion((actual) => {
         const { [fila.clave]: _, ...resto } = actual
         return resto
@@ -98,6 +129,21 @@ export default function Catalogo() {
     } finally {
       setGuardando(null)
     }
+  }
+
+  /** Lo escrito si lo hay; si no, lo que está guardado. */
+  function valorEnPantalla(fila: Fila, campo: keyof Cambio): string {
+    const escrito = edicion[fila.clave]?.[campo]
+    if (escrito !== undefined) return escrito
+    const guardado = campo === 'precio' ? fila.precio : fila.costo
+    return guardado === null ? '' : String(guardado)
+  }
+
+  function escribir(fila: Fila, campo: keyof Cambio, valor: string) {
+    setEdicion((actual) => ({
+      ...actual,
+      [fila.clave]: { ...actual[fila.clave], [campo]: valor },
+    }))
   }
 
   if (error && !filas) return <p className="aviso aviso-error">{error}</p>
@@ -122,15 +168,20 @@ export default function Catalogo() {
 
         {filas.map((fila) => {
           const editando = edicion[fila.clave] !== undefined
-          const m = margen(fila.precio, fila.costo)
+
+          // La ganancia se calcula con lo que lleva escrito, no con lo
+          // guardado: así se ve en el momento si el precio que está pensando
+          // poner deja algo o no, antes de guardarlo.
+          const precioEnPantalla = leerPesos(valorEnPantalla(fila, 'precio'))
+          const costoTexto = valorEnPantalla(fila, 'costo')
+          const costoEnPantalla = costoTexto.trim() === '' ? null : leerPesos(costoTexto)
+          const m = margen(precioEnPantalla ?? 0, costoEnPantalla)
 
           return (
             <div key={fila.clave} className="fila-costo">
               <span className="fila-costo-nombre">
                 {fila.nombre}
-                <small>
-                  {fila.detalle} · se vende a {plata(fila.precio)}
-                </small>
+                <small>{fila.detalle}</small>
               </span>
 
               <span className="fila-costo-margen">
@@ -145,18 +196,32 @@ export default function Catalogo() {
               </span>
 
               <span className="fila-costo-editar">
-                <input
-                  className="num"
-                  inputMode="numeric"
-                  placeholder="costo"
-                  value={editando ? edicion[fila.clave] : (fila.costo ?? '')}
-                  // Al entrar se selecciona lo que ya hay: escribir reemplaza
-                  // el costo viejo en vez de pegarse a él y multiplicarlo.
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) =>
-                    setEdicion((actual) => ({ ...actual, [fila.clave]: e.target.value }))
-                  }
-                />
+                <label className="campo-mini">
+                  <small>Se vende a</small>
+                  <input
+                    className="num"
+                    inputMode="numeric"
+                    placeholder="venta"
+                    value={valorEnPantalla(fila, 'precio')}
+                    // Al entrar se selecciona lo que ya hay: escribir
+                    // reemplaza el valor viejo en vez de pegarse a él.
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => escribir(fila, 'precio', e.target.value)}
+                  />
+                </label>
+
+                <label className="campo-mini">
+                  <small>Me cuesta</small>
+                  <input
+                    className="num"
+                    inputMode="numeric"
+                    placeholder="costo"
+                    value={valorEnPantalla(fila, 'costo')}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => escribir(fila, 'costo', e.target.value)}
+                  />
+                </label>
+
                 {editando && (
                   <button
                     className="btn-secundario btn-angosto"

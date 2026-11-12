@@ -1496,15 +1496,34 @@ td.vacio {
 .fila-costo-editar {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  /* Al pie, para que los botones queden alineados con los campos y no con
+     las etiquetas que van encima de ellos. */
+  align-items: flex-end;
 }
 .fila-costo-editar input {
-  flex: 1;
-  max-width: 160px;
+  width: 100%;
   text-align: right;
   font-family: var(--mono);
   padding: 8px 10px;
+}
+/* Cada campo con su rótulo encima: son dos platas parecidas y sin rótulo
+   es fácil meter el costo donde va la venta. */
+.campo-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 110px;
+  max-width: 160px;
+}
+.campo-mini small {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--humo-tenue);
+  font-weight: 600;
 }
 
 /* ============================================================= cocina */

@@ -362,7 +362,23 @@ prender({
   // Solo avisos y errores: lo de rutina (cada consulta, y la cocina pregunta
   // cada 20 s) llenaría la terminal y taparía lo importante. Los errores, y
   // el aviso de que recargó tras un cambio en el código, se siguen viendo.
-  args: ['-m', 'uvicorn', 'app.main:app', '--reload', '--port', String(PUERTO_API), '--log-level', 'warning'],
+  //
+  // --reload-dir app: que vigile SOLO el código del proyecto. Sin esto
+  // vigilaba toda la carpeta backend, incluida .venv con sus miles de
+  // archivos de librerías, y se reiniciaba sin parar —sobre todo con el
+  // proyecto dentro de OneDrive, que toca archivos al sincronizar—.
+  args: [
+    '-m',
+    'uvicorn',
+    'app.main:app',
+    '--reload',
+    '--reload-dir',
+    'app',
+    '--port',
+    String(PUERTO_API),
+    '--log-level',
+    'warning',
+  ],
   cwd: BACKEND,
 })
 prender({

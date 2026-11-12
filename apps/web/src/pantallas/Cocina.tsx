@@ -5,6 +5,7 @@ import { useEventos } from '../api/eventos'
 import type { ItemComanda } from '../api/tipos'
 import { cantidad as formatoCantidad } from '../formato'
 import { useSesion } from '../sesion'
+import VolverAlPanel from './VolverAlPanel'
 
 /** Minutos que lleva esperando un plato. */
 function esperando(desde: string): number {
@@ -74,6 +75,7 @@ export default function Cocina() {
             ● {conectado ? 'En línea' : 'Sin señal'}
           </span>
           <span className="pista">{sesion?.nombre}</span>
+          <VolverAlPanel />
           <button className="btn-peligro" onClick={salir}>
             Salir
           </button>

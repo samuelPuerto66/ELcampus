@@ -184,6 +184,21 @@ input {
   gap: 12px;
 }
 
+/* Vuelta al panel, solo para el administrador. Verde porque lleva a alguna
+   parte, a diferencia del rojo de Salir, que cierra la sesión. Sin el
+   subrayado que el navegador le pone solo a los enlaces. */
+.volver-panel {
+  color: var(--verde);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 3px 2px;
+}
+.volver-panel:hover {
+  color: color-mix(in srgb, var(--verde) 70%, white);
+}
+
 .chip-ok {
   color: var(--verde);
   font-size: 12px;

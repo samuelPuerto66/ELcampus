@@ -139,7 +139,15 @@ def test_ya_no_hay_forma_de_cambiar_cantidades_sin_dejar_rastro(como, datos):
     r = mesero.patch(
         f"/api/pedidos/{pedido['id']}/items/{detalle['id']}", json={"cantidad": 0}
     )
-    assert r.status_code == 405
+    # 404 o 405 da igual: las dos dicen que por ahí no se puede. Sale 404
+    # porque esa dirección no existe para ningún método —lo único que hay es
+    # .../quitar, que sí exige motivo—. Antes esperaba 405 a secas, que es lo
+    # que respondería solo si la dirección existiera con otro método.
+    assert r.status_code in (404, 405)
+
+    # Y lo que de verdad importa: la cantidad no se movió.
+    sigue = mesero.get(f"/api/pedidos/mesa/4").json()
+    assert sigue["detalles"][0]["cantidad"] == 2
 
 
 # ------------------------------------------- lo que necesita al administrador

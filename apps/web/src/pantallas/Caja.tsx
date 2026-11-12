@@ -11,6 +11,7 @@ import Fiados from './Fiados'
 import Fondo from './Fondo'
 import PanelCobro, { nombreDelMetodo, type Cobro } from './PanelCobro'
 import { AbrirCaja, CerrarCaja } from './TurnoCaja'
+import VolverAlPanel from './VolverAlPanel'
 
 /**
  * La caja del mostrador.
@@ -397,6 +398,7 @@ export default function Caja() {
           <span className={conectado ? 'chip-ok' : 'chip-mal'}>
             ● {conectado ? 'Conectado' : 'Sin conexión en vivo'}
           </span>
+          <VolverAlPanel />
           <button className="btn-peligro" onClick={salir}>
             Salir
           </button>

@@ -8,6 +8,7 @@ import type { Pedido } from '../api/tipos'
 import { plata } from '../formato'
 import { useSesion } from '../sesion'
 import Fondo from './Fondo'
+import VolverAlPanel from './VolverAlPanel'
 
 // Cuántas mesas tiene el local. Cuando el negocio ponga o quite mesas,
 // se cambia este número.
@@ -56,6 +57,7 @@ export default function Mesas() {
           <span className={conectado ? 'chip-ok' : 'chip-mal'}>
             ● {conectado ? 'En línea' : 'Sin señal'}
           </span>
+          <VolverAlPanel />
           <button className="btn-peligro" onClick={salir}>
             Salir
           </button>

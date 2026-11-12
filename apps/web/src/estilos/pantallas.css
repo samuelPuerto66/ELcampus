@@ -810,17 +810,30 @@ td.vacio {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 9px;
 }
+/* 86px porque es lo que necesita el caso peor: un nombre de dos líneas
+   (35px) más el precio, dentro de los 13px de relleno de arriba y abajo.
+   Con los 64px de antes el contenido no cabía y se cortaba por debajo del
+   borde en todo nombre largo —«Pechuga a la plancha», «Cerveza Aguila
+   330ml»—. Los botones no crecen solos para acomodarlo. */
 .tarjeta-item {
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--surface-2);
   padding: 13px 11px;
-  min-height: 64px;
+  min-height: 86px;
+  height: auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
   text-align: left;
   color: var(--espuma);
+}
+/* El precio se va al fondo de la tarjeta. Así queda a la misma altura en
+   toda la fila, sin importar si el nombre ocupó una línea o dos: antes
+   flotaba pegado al nombre y la cuadrícula se veía corrida. */
+.tarjeta-item small.num {
+  margin-top: auto;
+  align-self: flex-end;
 }
 .tarjeta-item b {
   font-size: 14px;
@@ -834,8 +847,12 @@ td.vacio {
 .tarjeta-item.especial {
   border-color: rgba(255, 199, 0, 0.45);
 }
+/* Fuera del flujo: si ocupara su renglón empujaría el precio hacia arriba y
+   la fila volvería a quedar despareja. Va al pie, al lado del precio. */
 .marca-especial {
-  align-self: flex-start;
+  position: absolute;
+  left: 11px;
+  bottom: 11px;
   font-size: 9.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1518,6 +1535,162 @@ td.vacio {
   min-width: 110px;
   max-width: 160px;
 }
+/* ------------------------------ menú del fin de semana (administrador) */
+.fechas-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.fechas-menu input {
+  font-family: var(--mono);
+  padding: 8px 10px;
+  width: 100%;
+}
+.plato-menu {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+/* Marcado = va este fin de semana. Se ve de lejos, que es lo que se revisa
+   antes de darle publicar. */
+.plato-menu.elegido {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 8%, var(--surface-2));
+}
+.plato-menu-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+}
+.plato-menu-marca {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+/* Con el selector del tipo: `.campo input` y otros ponen width:100% y, con
+   la misma especificidad, estirarían el cuadrito a lo ancho de la fila. */
+.plato-menu-marca input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--neon);
+  flex: none;
+}
+.plato-menu-quien {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.plato-menu-quien b {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.plato-menu-quien small {
+  font-size: 11px;
+  color: var(--neon-calido);
+}
+.plato-menu-precio {
+  font-size: 14px;
+  color: var(--humo);
+  white-space: nowrap;
+}
+.btn-tenue {
+  background: none;
+  border: none;
+  color: var(--humo-tenue);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 2px;
+  flex: none;
+}
+.btn-tenue:hover {
+  color: var(--espuma);
+}
+.plato-menu-editar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 2px 13px 13px;
+  border-top: 1px solid var(--line-soft);
+}
+/* El alta de un plato nuevo va al pie, en una línea: es lo que menos se usa
+   de esta pantalla. */
+.plato-nuevo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.plato-nuevo input {
+  padding: 8px 10px;
+}
+.plato-nuevo .campo-mini:first-child {
+  flex: 3;
+  min-width: 190px;
+  max-width: none;
+}
+
+/* ------------------------------------- buscador y secciones del catálogo */
+.catalogo-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line-soft);
+}
+/* El buscador manda: es por donde entra el código escaneado. */
+.catalogo-buscar {
+  flex: 3;
+  min-width: 220px;
+  max-width: none;
+}
+.catalogo-filtros select {
+  font-family: var(--body);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--espuma);
+  padding: 8px 10px;
+  font-size: 14px;
+  width: 100%;
+}
+.catalogo-grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--neon);
+  font-weight: 700;
+}
+/* El nombre necesita más aire que las cifras: ahí caben varias palabras. */
+.campo-nombre {
+  flex: 3;
+  min-width: 180px;
+  max-width: none;
+}
+.campo-nombre input {
+  text-align: left;
+  font-family: var(--body);
+}
+/* Lo que se está acabando, en el color de advertencia. */
+.quedan-pocos {
+  color: var(--llama);
+  font-weight: 700;
+}
+
 .campo-mini small {
   font-size: 10px;
   letter-spacing: 0.06em;

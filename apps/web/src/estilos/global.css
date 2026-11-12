@@ -187,6 +187,33 @@ input {
 /* Vuelta al panel, solo para el administrador. Verde porque lleva a alguna
    parte, a diferencia del rojo de Salir, que cierra la sesión. Sin el
    subrayado que el navegador le pone solo a los enlaces. */
+/* Estado de la mesa, arriba a la derecha en el celular del mesero.
+   Verde libre / rojo ocupada: se lee de un vistazo sin tener que leerlo. */
+.estado-mesa {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.estado-mesa.esta-libre {
+  color: var(--verde);
+  border-color: color-mix(in srgb, var(--verde) 55%, transparent);
+  background: color-mix(in srgb, var(--verde) 13%, transparent);
+}
+.estado-mesa.esta-ocupada {
+  color: var(--salsa);
+  border-color: color-mix(in srgb, var(--salsa) 55%, transparent);
+  background: color-mix(in srgb, var(--salsa) 13%, transparent);
+}
+/* Sin señal no es ni libre ni ocupada: todavía no se sabe. */
+.estado-mesa.sin-senal {
+  color: var(--humo);
+  border-color: var(--line);
+}
+
 .volver-panel {
   color: var(--verde);
   text-decoration: none;

@@ -14,17 +14,17 @@ import { cantidad as formatoCantidad, hora, plata } from '../formato'
 import { useSesion } from '../sesion'
 import CargarProductos from './CargarProductos'
 import Catalogo from './Catalogo'
-import Fiados from './Fiados'
+import MenuDelFinDeSemana from './MenuDelFinDeSemana'
 import Usuarios from './Usuarios'
 import Fondo from './Fondo'
 
-type Pestana = 'resumen' | 'costos' | 'cargar' | 'fiado' | 'usuarios'
+type Pestana = 'resumen' | 'productos' | 'cargar' | 'menu' | 'usuarios'
 
 const PESTANAS: { valor: Pestana; texto: string }[] = [
   { valor: 'resumen', texto: 'Resumen' },
-  { valor: 'costos', texto: 'Costos' },
+  { valor: 'productos', texto: 'Productos' },
   { valor: 'cargar', texto: 'Cargar' },
-  { valor: 'fiado', texto: 'Fiado' },
+  { valor: 'menu', texto: 'Menú' },
   { valor: 'usuarios', texto: 'Usuarios' },
 ]
 
@@ -307,13 +307,11 @@ export default function Admin() {
 
       <div className="panel-cuerpo">
         {pestana === 'resumen' && <Resumen />}
-        {pestana === 'costos' && <Catalogo />}
+        {pestana === 'productos' && <Catalogo />}
         {pestana === 'cargar' && <CargarProductos />}
-        {pestana === 'fiado' && (
-          <section className="tarjeta">
-            <Fiados esAdmin />
-          </section>
-        )}
+        {/* El cuaderno de fiados ya no tiene pestaña aquí: vive en la caja,
+            que es donde se abona y se cobra. Se abre con el botón «Fiados». */}
+        {pestana === 'menu' && <MenuDelFinDeSemana />}
         {pestana === 'usuarios' && <Usuarios />}
       </div>
     </div>

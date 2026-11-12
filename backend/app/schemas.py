@@ -135,6 +135,18 @@ class PlatoCrear(PlatoBase):
     pass
 
 
+class MenuDelFinDeSemana(BaseModel):
+    """Los platos que rotan y salen este fin de semana, y hasta cuándo.
+
+    Lo que no venga en `platos` se saca del menú —sigue guardado en la carta
+    para otra semana—. Los fijos no entran aquí: esos van siempre.
+    """
+
+    desde: date
+    hasta: date
+    platos: list[int] = []
+
+
 class PlatoActualizar(BaseModel):
     nombre: str | None = None
     precio: float | None = Field(default=None, gt=0)

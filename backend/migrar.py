@@ -43,6 +43,23 @@ def crear_tabla(con, hechos: list[str], modelo) -> None:
         hechos.append(f"tabla {tabla.name} creada")
 
 
+# Los platos que el administrador rota fin de semana a fin de semana. No es
+# el menú: es la carta de la que escoge. Entran sin fechas, o sea guardados
+# pero sin salir, hasta que él los marque y los publique.
+CARTA_QUE_ROTA = [
+    ("Guiso de cola", 40000),
+    ("Sobrebarriga", 40000),
+    ("Mondongo", 30000),
+    ("Ajiaco", 30000),
+    ("Bifásico", 40000),
+    ("Frijolada", 40000),
+    ("Gallina del campus", 35000),
+    ("Hueso de cerdo", 40000),
+    ("Lengua en salsa", 40000),
+    ("Bandeja paisa", 40000),
+]
+
+
 def main() -> int:
     hechos = []
 
@@ -219,6 +236,24 @@ def main() -> int:
             con, hechos, "pedidos_mesa", "para_llevar", "BOOLEAN NOT NULL DEFAULT 0"
         )
         agregar_columna(con, hechos, "pedidos_mesa", "nombre_cliente", "VARCHAR(60)")
+
+        # --- la carta del restaurante ---
+        # Los platos que rotan cada fin de semana. Se insertan por nombre y
+        # solo si faltan: correr esto dos veces no los duplica, y si el
+        # administrador ya le cambió el precio a uno, no se lo pisa.
+        for nombre, precio in CARTA_QUE_ROTA:
+            ya_esta = con.execute(
+                text("SELECT 1 FROM platos WHERE nombre = :n"), {"n": nombre}
+            ).first()
+            if not ya_esta:
+                con.execute(
+                    text(
+                        "INSERT INTO platos (nombre, precio, tipo) "
+                        "VALUES (:n, :p, 'especial')"
+                    ),
+                    {"n": nombre, "p": precio},
+                )
+                hechos.append(f"plato «{nombre}» agregado a la carta")
 
     if hechos:
         for h in hechos:

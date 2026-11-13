@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { api } from '../api/cliente'
-import type { Plato, Producto } from '../api/tipos'
+import type { Plato } from '../api/tipos'
 import { leerPesos, milesAlEscribir, plata } from '../formato'
-import Receta from './Receta'
 
 /** yyyy-mm-dd en hora local.
  *
@@ -39,6 +38,21 @@ const dia = (iso: string) =>
     month: 'short',
   })
 
+/** "13 a 15 nov" — corto, para que quepa en una línea del pie de la ficha. */
+function rango(desde: string, hasta: string) {
+  const d = new Date(`${desde}T12:00:00`)
+  const h = new Date(`${hasta}T12:00:00`)
+  const diaSolo = d.toLocaleDateString('es-CO', { day: 'numeric' })
+  const conMes = (x: Date) => x.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+  return `${d.getMonth() === h.getMonth() ? diaSolo : conMes(d)} a ${conMes(h)}`
+}
+
+/** "Ajiaco, Mondongo y 2 más" — para el resumen de lo que se va a publicar. */
+function enumerar(nombres: string[]) {
+  if (nombres.length <= 2) return nombres.join(' y ')
+  return `${nombres.slice(0, 2).join(', ')} y ${nombres.length - 2} más`
+}
+
 export default function MenuDelFinDeSemana() {
   const [platos, setPlatos] = useState<Plato[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -51,11 +65,6 @@ export default function MenuDelFinDeSemana() {
 
   const [abierto, setAbierto] = useState<number | null>(null)
   const [precioNuevo, setPrecioNuevo] = useState('')
-  const [costoNuevo, setCostoNuevo] = useState('')
-  // Los insumos de cocina viven aquí, con el restaurante: son la carne y el
-  // pescado de los platos, no mercancía de la tienda.
-  const [insumos, setInsumos] = useState<Producto[]>([])
-  const [recetaAbierta, setRecetaAbierta] = useState<number | null>(null)
 
   const [nombre, setNombre] = useState('')
   const [precio, setPrecio] = useState('')
@@ -74,12 +83,6 @@ export default function MenuDelFinDeSemana() {
       .get<Plato[]>('/platos?solo_vigentes=false')
       .then(setPlatos)
       .catch((f) => setError(f instanceof Error ? f.message : 'No se pudo cargar la carta.'))
-    api
-      .get<Producto[]>('/productos?incluir_insumos=true')
-      .then((todos) => setInsumos(todos.filter((p) => p.es_insumo)))
-      .catch(() => {
-        // Sin insumos solo se pierde poder armar recetas; la carta sirve igual.
-      })
   }
 
   useEffect(cargar, [])
@@ -96,6 +99,11 @@ export default function MenuDelFinDeSemana() {
   )
   const fijos = useMemo(() => (platos ?? []).filter((p) => p.tipo === 'fijo'), [platos])
 
+  const marcados = useMemo(
+    () => especiales.filter((p) => elegidos.has(p.id)).map((p) => p.nombre),
+    [especiales, elegidos],
+  )
+
   function marcar(id: number) {
     setElegidos((antes) => {
       const ahora = new Set(antes)
@@ -103,6 +111,11 @@ export default function MenuDelFinDeSemana() {
       else ahora.add(id)
       return ahora
     })
+  }
+
+  function abrirEditor(id: number) {
+    setAbierto(abierto === id ? null : id)
+    setPrecioNuevo('')
   }
 
   async function publicar() {
@@ -158,37 +171,22 @@ export default function MenuDelFinDeSemana() {
   }
 
   async function guardarPlato(plato: Plato) {
-    const cambios: Record<string, number | null> = {}
-
-    if (precioNuevo.trim() !== '') {
-      const valor = leerPesos(precioNuevo)
-      if (valor === null || valor <= 0) {
-        setError('El precio tiene que ser mayor que cero.')
-        return
-      }
-      cambios.precio = valor
-    }
-
-    if (costoNuevo.trim() !== '') {
-      const valor = leerPesos(costoNuevo)
-      if (valor === null || valor < 0) {
-        setError('El costo no es un número válido.')
-        return
-      }
-      cambios.costo = valor
-    }
-
-    if (Object.keys(cambios).length === 0) {
+    if (precioNuevo.trim() === '') {
       setAbierto(null)
+      return
+    }
+
+    const valor = leerPesos(precioNuevo)
+    if (valor === null || valor <= 0) {
+      setError('El precio tiene que ser mayor que cero.')
       return
     }
 
     setError(null)
     try {
-      await api.patch<Plato>(`/platos/${plato.id}`, cambios)
-      setListo(`${plato.nombre} quedó guardado.`)
+      await api.patch<Plato>(`/platos/${plato.id}`, { precio: valor })
+      setListo(`${plato.nombre} ahora se vende a ${plata(valor)}.`)
       setPrecioNuevo('')
-      setCostoNuevo('')
       setAbierto(null)
       cargar()
     } catch (fallo) {
@@ -215,6 +213,116 @@ export default function MenuDelFinDeSemana() {
     }
   }
 
+  /** El editor, igual para un plato que rota y para uno fijo.
+   *
+   *  Solo el precio. El restaurante se maneja por lo que cobra el plato; el
+   *  costo de la mercancía es cosa de la tienda, que es otro negocio y
+   *  tiene su propia pantalla.
+   */
+  function editor(p: Plato) {
+    return (
+      <div className="plato-editor">
+        <label className="campo-mini campo-precio-plato">
+          <small>Se vende a</small>
+          <input
+            className="num"
+            inputMode="numeric"
+            value={milesAlEscribir(precioNuevo)}
+            placeholder={milesAlEscribir(String(p.precio))}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setPrecioNuevo(milesAlEscribir(e.target.value))}
+          />
+        </label>
+        <button
+          type="button"
+          className="btn-secundario btn-angosto"
+          onClick={() => void guardarPlato(p)}
+        >
+          Guardar
+        </button>
+
+        {/* Quitar de la carta se va al otro extremo de la fila, para que no
+            quede pegado a «Guardar». */}
+        {p.tipo === 'especial' && (
+          <div className="plato-editor-aparte">
+            <button type="button" className="btn-peligro" onClick={() => void quitar(p)}>
+              Quitar de la carta
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function tarjetaQueRota(p: Plato) {
+    const elegido = elegidos.has(p.id)
+    const editando = abierto === p.id
+    return (
+      <article
+        key={p.id}
+        className={`plato-tarjeta ${elegido ? 'elegido' : ''} ${editando ? 'editando' : ''}`}
+      >
+        <button
+          type="button"
+          className="plato-tarjeta-cuerpo"
+          onClick={() => marcar(p.id)}
+          aria-pressed={elegido}
+        >
+          <span className="plato-check" aria-hidden="true" />
+          <span className="plato-nombre">{p.nombre}</span>
+          <span className="plato-precio num">{plata(p.precio)}</span>
+        </button>
+
+        <div className="plato-tarjeta-pie">
+          {p.activo_desde && p.activo_hasta ? (
+            <span className="plato-vigente">
+              en el menú · {rango(p.activo_desde, p.activo_hasta)}
+            </span>
+          ) : (
+            <span className="plato-guardado">guardado en la carta</span>
+          )}
+          <button
+            type="button"
+            className="btn-tenue"
+            onClick={() => abrirEditor(p.id)}
+            aria-expanded={editando}
+          >
+            {editando ? 'Cerrar' : 'Editar'}
+          </button>
+        </div>
+
+        {editando && editor(p)}
+      </article>
+    )
+  }
+
+  function tarjetaFija(p: Plato) {
+    const editando = abierto === p.id
+    return (
+      <article key={p.id} className={`plato-tarjeta fijo ${editando ? 'editando' : ''}`}>
+        <div className="plato-tarjeta-cuerpo">
+          <span className="plato-siempre">siempre</span>
+          <span className="plato-nombre">{p.nombre}</span>
+          <span className="plato-precio num">{plata(p.precio)}</span>
+        </div>
+
+        <div className="plato-tarjeta-pie">
+          <span className="plato-guardado">no se marca</span>
+          <button
+            type="button"
+            className="btn-tenue"
+            onClick={() => abrirEditor(p.id)}
+            aria-expanded={editando}
+          >
+            {editando ? 'Cerrar' : 'Editar'}
+          </button>
+        </div>
+
+        {editando && editor(p)}
+      </article>
+    )
+  }
+
   const fechasAlReves = Boolean(desde && hasta && hasta < desde)
   // Un menú con fechas pasadas se guarda pero no le sale a nadie: el mesero
   // solo ve lo vigente hoy. Sin este aviso parece que el botón no sirviera.
@@ -222,184 +330,102 @@ export default function MenuDelFinDeSemana() {
 
   return (
     <section className="tarjeta">
-      <div className="catalogo">
-        <p className="pista">
-          Cada fin de semana cambian los platos. Marca los que salen y publícalos: lo que
-          no marques deja de aparecerle al mesero, y el menú se apaga solo cuando pasa la
-          fecha. La picada, la pechuga y la mojarra van siempre y no se marcan.
-        </p>
+      <div className="menu-fds">
+        <header className="menu-cabecera">
+          <div className="menu-cabecera-texto">
+            <h3>Menú del fin de semana</h3>
+            <p className="pista">
+              El restaurante abre sábado y domingo. Marca los platos que salen y
+              publícalos: lo que no marques deja de aparecerle al mesero, pero sigue
+              guardado en la carta para otro fin de semana.
+            </p>
+          </div>
+          <div className="menu-fechas">
+            <label className="campo-mini">
+              <small>Desde</small>
+              <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </label>
+            <label className="campo-mini">
+              <small>Hasta</small>
+              <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </label>
+          </div>
+        </header>
 
         {error && <p className="aviso aviso-error">{error}</p>}
         {listo && <p className="aviso aviso-ok">{listo}</p>}
+        {fechasAlReves && (
+          <p className="aviso aviso-error">
+            La fecha de fin no puede ser anterior a la de inicio.
+          </p>
+        )}
+        {fechasYaPasaron && !fechasAlReves && (
+          <p className="aviso aviso-atencion">
+            Ese fin de semana ya pasó. Si publicas con estas fechas, el menú queda
+            guardado pero no le aparece al mesero.
+          </p>
+        )}
 
         {platos === null && <p className="cargando">Cargando la carta…</p>}
 
         {platos !== null && (
           <>
-            <div className="fechas-menu">
-              <label className="campo-mini">
-                <small>Desde</small>
-                <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-              </label>
-              <label className="campo-mini">
-                <small>Hasta</small>
-                <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-              </label>
-            </div>
+            <h4 className="menu-titulo">
+              Platos que rotan
+              <span className="menu-conteo">
+                {elegidos.size === 0
+                  ? 'ninguno marcado'
+                  : `${elegidos.size} ${elegidos.size === 1 ? 'marcado' : 'marcados'}`}
+              </span>
+            </h4>
 
-            {fechasAlReves && (
-              <p className="aviso aviso-error">
-                La fecha de fin no puede ser anterior a la de inicio.
-              </p>
-            )}
-            {fechasYaPasaron && !fechasAlReves && (
-              <p className="aviso aviso-atencion">
-                Ese fin de semana ya pasó. Si publicas con estas fechas, el menú queda
-                guardado pero no le aparece al mesero.
-              </p>
-            )}
-
-            {especiales.length === 0 && (
+            {especiales.length === 0 ? (
               <p className="pista">
                 Todavía no hay platos que roten. Agrega el primero aquí abajo.
               </p>
+            ) : (
+              <div className="platos-grilla">{especiales.map(tarjetaQueRota)}</div>
             )}
 
-            {especiales.map((p) => (
-              <div key={p.id} className={`plato-menu ${elegidos.has(p.id) ? 'elegido' : ''}`}>
-                <div className="plato-menu-fila">
-                  <label className="plato-menu-marca">
-                    <input
-                      type="checkbox"
-                      checked={elegidos.has(p.id)}
-                      onChange={() => marcar(p.id)}
-                    />
-                    <span className="plato-menu-quien">
-                      <b>{p.nombre}</b>
-                      {p.costo_efectivo !== null && p.precio > 0 && (
-                        <small className="plato-menu-deja">
-                          deja {plata(p.precio - p.costo_efectivo)}
-                          {p.tiene_receta ? ' · con receta' : ''}
-                        </small>
-                      )}
-                      {p.activo_desde && p.activo_hasta && (
-                        <small>
-                          en el menú · {dia(p.activo_desde)} a {dia(p.activo_hasta)}
-                        </small>
-                      )}
-                    </span>
-                  </label>
-                  <span className="plato-menu-precio num">{plata(p.precio)}</span>
-                  <button
-                    type="button"
-                    className="btn-tenue"
-                    onClick={() => {
-                      setAbierto(abierto === p.id ? null : p.id)
-                      setPrecioNuevo('')
-                      setCostoNuevo('')
-                      setRecetaAbierta(null)
-                    }}
-                    aria-expanded={abierto === p.id}
-                  >
-                    {abierto === p.id ? 'Cerrar' : 'Editar'}
-                  </button>
-                </div>
-
-                {abierto === p.id && (
-                  <>
-                    <div className="plato-menu-editar">
-                      <label className="campo-mini">
-                        <small>Se vende a</small>
-                        <input
-                          className="num"
-                          inputMode="numeric"
-                          value={milesAlEscribir(precioNuevo)}
-                          placeholder={milesAlEscribir(String(p.precio))}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => setPrecioNuevo(milesAlEscribir(e.target.value))}
-                        />
-                      </label>
-                      <label className="campo-mini">
-                        <small>Me cuesta</small>
-                        <input
-                          className="num"
-                          inputMode="numeric"
-                          value={milesAlEscribir(costoNuevo)}
-                          placeholder={p.costo === null ? '—' : milesAlEscribir(String(p.costo))}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => setCostoNuevo(milesAlEscribir(e.target.value))}
-                          disabled={p.tiene_receta}
-                          title={
-                            p.tiene_receta
-                              ? 'Este plato tiene receta: el costo sale de sus insumos.'
-                              : undefined
-                          }
-                        />
-                      </label>
-
-                      <button
-                        type="button"
-                        className="btn-secundario btn-angosto"
-                        onClick={() => void guardarPlato(p)}
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-tenue"
-                        onClick={() =>
-                          setRecetaAbierta(recetaAbierta === p.id ? null : p.id)
-                        }
-                      >
-                        {recetaAbierta === p.id ? 'Cerrar receta' : 'Receta'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-peligro"
-                        onClick={() => void quitar(p)}
-                      >
-                        Quitar de la carta
-                      </button>
-                    </div>
-
-                    {recetaAbierta === p.id && (
-                      <div className="plato-menu-receta">
-                        <Receta
-                          platoId={p.id}
-                          insumos={insumos}
-                          alGuardar={() => cargar()}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-
             {especiales.length > 0 && (
-              <button
-                className="btn-primario"
-                onClick={() => void publicar()}
-                disabled={publicando || fechasAlReves || fechasYaPasaron || !desde || !hasta}
-              >
-                {publicando
-                  ? 'Publicando…'
-                  : elegidos.size === 0
-                    ? 'Publicar: solo los platos fijos'
-                    : `Publicar el menú · ${elegidos.size} ${
-                        elegidos.size === 1 ? 'plato' : 'platos'
-                      }`}
-              </button>
+              <div className="menu-publicar">
+                <span className="menu-publicar-resumen">
+                  {elegidos.size === 0 ? (
+                    'Sin platos marcados: el mesero solo vería los fijos.'
+                  ) : (
+                    <>
+                      {enumerar(marcados)} · {dia(desde)} a {dia(hasta)}
+                    </>
+                  )}
+                </span>
+                <button
+                  className="btn-primario"
+                  onClick={() => void publicar()}
+                  disabled={publicando || fechasAlReves || fechasYaPasaron || !desde || !hasta}
+                >
+                  {publicando
+                    ? 'Publicando…'
+                    : elegidos.size === 0
+                      ? 'Publicar: solo los platos fijos'
+                      : `Publicar el menú · ${elegidos.size} ${
+                          elegidos.size === 1 ? 'plato' : 'platos'
+                        }`}
+                </button>
+              </div>
             )}
 
             {fijos.length > 0 && (
-              <p className="pista">
-                <b>Siempre en la carta:</b> {fijos.map((p) => p.nombre).join(' · ')}.
-              </p>
+              <>
+                <h4 className="menu-titulo">
+                  Siempre en la carta
+                  <span className="menu-conteo">van todos los fines de semana</span>
+                </h4>
+                <div className="platos-grilla">{fijos.map(tarjetaFija)}</div>
+              </>
             )}
 
             <form className="plato-nuevo" onSubmit={crear}>
-              <label className="campo-mini">
+              <label className="campo-mini campo-nombre">
                 <small>Agregar un plato a la carta</small>
                 <input
                   value={nombre}

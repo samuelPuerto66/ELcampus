@@ -6,11 +6,10 @@ Las claves son de desarrollo. Antes de usar el sistema en el negocio hay
 que crear los usuarios reales y borrar estos.
 """
 
-from datetime import date, timedelta
-
 from app import models
 from app.database import Base, SessionLocal, engine
 from app.security import hash_password
+from migrar import CARTA_QUE_ROTA
 
 Base.metadata.create_all(bind=engine)
 
@@ -72,7 +71,6 @@ if db.query(models.Producto).count() == 0:
     )
 
 if db.query(models.Plato).count() == 0:
-    hoy = date.today()
     db.add_all(
         [
             models.Plato(
@@ -87,14 +85,13 @@ if db.query(models.Plato).count() == 0:
             models.Plato(
                 nombre="Morraja", precio=22000, tipo=models.TipoPlato.fijo, costo=9500
             ),
-            models.Plato(
-                nombre="Sancocho de gallina",
-                precio=28000,
-                costo=11000,
-                tipo=models.TipoPlato.especial,
-                activo_desde=hoy,
-                activo_hasta=hoy + timedelta(days=2),
-            ),
+            # La carta de la que el administrador escoge cada fin de semana.
+            # Sin fechas: están guardados, pero no salen hasta que los
+            # marque y publique el menú.
+            *[
+                models.Plato(nombre=nombre, precio=precio, tipo=models.TipoPlato.especial)
+                for nombre, precio in CARTA_QUE_ROTA
+            ],
         ]
     )
 

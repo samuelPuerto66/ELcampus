@@ -1536,70 +1536,227 @@ td.vacio {
   max-width: 160px;
 }
 /* ------------------------------ menú del fin de semana (administrador) */
-.fechas-menu {
+/* El restaurante solo abre sábado y domingo. Esta pantalla es donde el
+   administrador arma lo que va a salir: por eso los platos se ven como
+   fichas grandes con su precio, no como una lista de renglones. */
+.menu-fds {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.menu-cabecera {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  padding-bottom: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
 }
-.fechas-menu input {
+.menu-cabecera-texto {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.menu-cabecera h3 {
+  font-family: var(--display);
+  font-size: 19px;
+  letter-spacing: 0.01em;
+  color: var(--espuma);
+  margin: 0;
+}
+.menu-cabecera .pista {
+  max-width: 54ch;
+  line-height: 1.5;
+}
+.menu-fechas {
+  display: flex;
+  gap: 10px;
+  flex: none;
+}
+.menu-fechas input {
   font-family: var(--mono);
   padding: 8px 10px;
   width: 100%;
 }
-.plato-menu {
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: var(--surface-2);
-}
-/* Marcado = va este fin de semana. Se ve de lejos, que es lo que se revisa
-   antes de darle publicar. */
-.plato-menu.elegido {
-  border-color: var(--neon);
-  background: color-mix(in srgb, var(--neon) 8%, var(--surface-2));
-}
-.plato-menu-fila {
+
+/* Un título de sección con su conteo a la derecha: cuántos van marcados.
+   Es el dato que se mira antes de darle publicar. */
+.menu-titulo {
   display: flex;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 12px;
-  padding: 11px 13px;
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--neon);
+  font-weight: 700;
 }
-.plato-menu-marca {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
+.menu-conteo {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--humo);
 }
-/* Con el selector del tipo: `.campo input` y otros ponen width:100% y, con
-   la misma especificidad, estirarían el cuadrito a lo ancho de la fila. */
-.plato-menu-marca input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--neon);
-  flex: none;
+
+.platos-grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 10px;
 }
-.plato-menu-quien {
+
+.plato-tarjeta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-2);
+  overflow: hidden;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
 }
-.plato-menu-quien b {
+/* Abierto para editar ocupa la fila entera: el editor necesita el ancho y
+   así no deforma las demás fichas de la grilla. */
+.plato-tarjeta.editando {
+  grid-column: 1 / -1;
+  border-color: var(--line);
+}
+/* Marcado = sale este fin de semana. Se tiene que ver de lejos. */
+.plato-tarjeta.elegido {
+  border-color: var(--neon);
+  background: color-mix(in srgb, var(--neon) 9%, var(--surface-2));
+  box-shadow: 0 0 0 1px var(--neon-glow);
+}
+
+.plato-tarjeta-cuerpo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 13px 14px 11px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.plato-tarjeta.fijo .plato-tarjeta-cuerpo {
+  cursor: default;
+}
+.plato-tarjeta-cuerpo:focus-visible {
+  outline: 2px solid var(--neon);
+  outline-offset: -3px;
+}
+
+/* El cuadrito de marcar. Se dibuja aquí y no con un <input type=checkbox>
+   para que el visto quepa dentro del botón sin dos cosas enfocables. */
+.plato-check {
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--humo-tenue);
+  border-radius: 5px;
+  flex: none;
+  position: relative;
+  transition:
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+.plato-tarjeta.elegido .plato-check {
+  border-color: var(--neon);
+  background: var(--neon);
+}
+.plato-tarjeta.elegido .plato-check::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 4px;
+  height: 9px;
+  border: solid var(--ground);
+  border-width: 0 2px 2px 0;
+  transform: rotate(42deg);
+}
+.plato-tarjeta-cuerpo:hover .plato-check {
+  border-color: var(--neon);
+}
+
+/* El "siempre" de los fijos ocupa el lugar del cuadrito: misma altura, para
+   que las dos grillas queden alineadas entre sí. */
+.plato-siempre {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--neon-calido);
+  background: color-mix(in srgb, var(--neon-calido) 14%, transparent);
+}
+
+.plato-nombre {
   font-size: 14.5px;
   font-weight: 600;
+  color: var(--espuma);
+  line-height: 1.25;
+  margin-top: 5px;
 }
-.plato-menu-quien small {
-  font-size: 11px;
+.plato-precio {
+  font-family: var(--display);
+  font-size: 21px;
+  color: var(--neon);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+/* `margin-top: auto` empuja el pie abajo del todo: así, aunque una ficha
+   tenga una línea más que la de al lado, los pies quedan alineados. */
+.plato-tarjeta-pie {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px 7px 14px;
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--ground) 28%, transparent);
+}
+.plato-vigente {
+  font-size: 12px;
   color: var(--neon-calido);
+  font-weight: 600;
 }
-.plato-menu-precio {
-  font-size: 14px;
+.plato-guardado {
+  font-size: 12px;
   color: var(--humo);
-  white-space: nowrap;
 }
+
+/* Las letras chicas de esta pantalla van un punto más grandes y más claras
+   que en el resto: es donde se lee precio por precio antes de publicar.
+   Va acotado a `.menu-fds` para no mover las otras pantallas. */
+.menu-fds .campo-mini small {
+  font-size: 12px;
+  color: var(--espuma);
+  letter-spacing: 0.05em;
+}
+.menu-fds .pista {
+  font-size: 13px;
+  color: var(--humo);
+}
+.menu-fds .btn-tenue {
+  font-size: 13px;
+  color: var(--humo);
+}
+
 .btn-tenue {
   background: none;
   border: none;
@@ -1612,14 +1769,67 @@ td.vacio {
 .btn-tenue:hover {
   color: var(--espuma);
 }
-.plato-menu-editar {
+
+.plato-editor {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 10px;
-  padding: 2px 13px 13px;
+  gap: 12px;
+  padding: 15px 14px;
   border-top: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--ground) 20%, transparent);
 }
+/* El campo del precio es lo único que se escribe aquí: que se vea como el
+   campo principal y no como uno más de una fila de cajitas. */
+.campo-precio-plato {
+  max-width: 190px;
+  flex: none;
+}
+.campo-precio-plato input {
+  font-size: 17px;
+  padding: 10px 12px;
+}
+.plato-editor .btn-secundario.btn-angosto {
+  width: auto;
+  padding: 11px 22px;
+}
+/* Quitar se va al otro extremo: no es el botón que se busca en esta fila. */
+.plato-editor-aparte {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 4px;
+}
+.plato-editor-aparte .btn-peligro {
+  font-size: 13px;
+}
+
+/* La barra de publicar: a la izquierda qué se va a publicar, a la derecha
+   el botón. Así se lee antes de apretarlo. */
+.menu-publicar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--neon) 4%, var(--surface-2));
+}
+.menu-publicar-resumen {
+  flex: 1;
+  min-width: 180px;
+  font-size: 13.5px;
+  color: var(--espuma);
+}
+.menu-publicar .btn-primario {
+  width: auto;
+  flex: none;
+  min-width: 220px;
+}
+
 /* El alta de un plato nuevo va al pie, en una línea: es lo que menos se usa
    de esta pantalla. */
 .plato-nuevo {
@@ -1637,6 +1847,19 @@ td.vacio {
   flex: 3;
   min-width: 190px;
   max-width: none;
+}
+
+@media (max-width: 560px) {
+  .platos-grilla {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .menu-fechas {
+    width: 100%;
+  }
+  .menu-publicar .btn-primario {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 /* ------------------------------------- buscador y secciones del catálogo */
@@ -1843,13 +2066,6 @@ td.vacio {
   width: auto;
 }
 
-.plato-menu-deja {
-  color: var(--humo-tenue) !important;
-  font-size: 11px;
-}
-.plato-menu-receta {
-  padding: 0 13px 13px;
-}
 
 .catalogo-grupo-titulo {
   display: flex;

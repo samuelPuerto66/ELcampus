@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 
 import { api } from '../api/cliente'
 import type { ClienteFiado, CuentaFiado, MetodoPago } from '../api/tipos'
-import { hora, leerPesos, plata } from '../formato'
+import { hora, leerPesos, milesAlEscribir, plata } from '../formato'
 
 /**
  * El cuaderno de fiados: a quién se le fía, cuánto debe y sus abonos.
@@ -183,8 +183,8 @@ function NuevoCliente({
       />
       <input
         className="num"
-        value={cupo}
-        onChange={(e) => setCupo(e.target.value)}
+        value={milesAlEscribir(cupo)}
+        onChange={(e) => setCupo(milesAlEscribir(e.target.value))}
         placeholder="Cupo: hasta cuánto puede deber"
         inputMode="numeric"
       />
@@ -321,8 +321,8 @@ function CuentaDeCliente({
           <div className="opcion-fila">
             <input
               className="campo-cobro num"
-              value={monto}
-              onChange={(e) => setMonto(e.target.value)}
+              value={milesAlEscribir(monto)}
+              onChange={(e) => setMonto(milesAlEscribir(e.target.value))}
               placeholder="¿Cuánto trajo?"
               inputMode="numeric"
             />
@@ -359,8 +359,8 @@ function CuentaDeCliente({
           <div className="opcion-fila">
             <input
               className="campo-cobro num"
-              value={cupo}
-              onChange={(e) => setCupo(e.target.value)}
+              value={milesAlEscribir(cupo)}
+              onChange={(e) => setCupo(milesAlEscribir(e.target.value))}
               placeholder="Sin límite"
               inputMode="numeric"
             />

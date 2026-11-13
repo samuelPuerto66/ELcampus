@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 import { api } from '../api/cliente'
-import type { Plato } from '../api/tipos'
-import { leerPesos, plata } from '../formato'
+import type { Plato, Producto } from '../api/tipos'
+import { leerPesos, milesAlEscribir, plata } from '../formato'
+import Receta from './Receta'
 
 /** yyyy-mm-dd en hora local.
  *
@@ -50,6 +51,11 @@ export default function MenuDelFinDeSemana() {
 
   const [abierto, setAbierto] = useState<number | null>(null)
   const [precioNuevo, setPrecioNuevo] = useState('')
+  const [costoNuevo, setCostoNuevo] = useState('')
+  // Los insumos de cocina viven aquí, con el restaurante: son la carne y el
+  // pescado de los platos, no mercancía de la tienda.
+  const [insumos, setInsumos] = useState<Producto[]>([])
+  const [recetaAbierta, setRecetaAbierta] = useState<number | null>(null)
 
   const [nombre, setNombre] = useState('')
   const [precio, setPrecio] = useState('')
@@ -68,6 +74,12 @@ export default function MenuDelFinDeSemana() {
       .get<Plato[]>('/platos?solo_vigentes=false')
       .then(setPlatos)
       .catch((f) => setError(f instanceof Error ? f.message : 'No se pudo cargar la carta.'))
+    api
+      .get<Producto[]>('/productos?incluir_insumos=true')
+      .then((todos) => setInsumos(todos.filter((p) => p.es_insumo)))
+      .catch(() => {
+        // Sin insumos solo se pierde poder armar recetas; la carta sirve igual.
+      })
   }
 
   useEffect(cargar, [])
@@ -145,20 +157,42 @@ export default function MenuDelFinDeSemana() {
     }
   }
 
-  async function cambiarPrecio(plato: Plato) {
-    const valor = leerPesos(precioNuevo)
-    if (valor === null || valor <= 0) {
-      setError('El precio tiene que ser mayor que cero.')
+  async function guardarPlato(plato: Plato) {
+    const cambios: Record<string, number | null> = {}
+
+    if (precioNuevo.trim() !== '') {
+      const valor = leerPesos(precioNuevo)
+      if (valor === null || valor <= 0) {
+        setError('El precio tiene que ser mayor que cero.')
+        return
+      }
+      cambios.precio = valor
+    }
+
+    if (costoNuevo.trim() !== '') {
+      const valor = leerPesos(costoNuevo)
+      if (valor === null || valor < 0) {
+        setError('El costo no es un número válido.')
+        return
+      }
+      cambios.costo = valor
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      setAbierto(null)
       return
     }
+
     setError(null)
     try {
-      await api.patch<Plato>(`/platos/${plato.id}`, { precio: valor })
-      setListo(`${plato.nombre} ahora vale ${plata(valor)}.`)
+      await api.patch<Plato>(`/platos/${plato.id}`, cambios)
+      setListo(`${plato.nombre} quedó guardado.`)
       setPrecioNuevo('')
+      setCostoNuevo('')
+      setAbierto(null)
       cargar()
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo cambiar el precio.')
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo guardar.')
     }
   }
 
@@ -242,6 +276,12 @@ export default function MenuDelFinDeSemana() {
                     />
                     <span className="plato-menu-quien">
                       <b>{p.nombre}</b>
+                      {p.costo_efectivo !== null && p.precio > 0 && (
+                        <small className="plato-menu-deja">
+                          deja {plata(p.precio - p.costo_efectivo)}
+                          {p.tiene_receta ? ' · con receta' : ''}
+                        </small>
+                      )}
                       {p.activo_desde && p.activo_hasta && (
                         <small>
                           en el menú · {dia(p.activo_desde)} a {dia(p.activo_hasta)}
@@ -256,42 +296,82 @@ export default function MenuDelFinDeSemana() {
                     onClick={() => {
                       setAbierto(abierto === p.id ? null : p.id)
                       setPrecioNuevo('')
+                      setCostoNuevo('')
+                      setRecetaAbierta(null)
                     }}
                     aria-expanded={abierto === p.id}
                   >
-                    Editar
+                    {abierto === p.id ? 'Cerrar' : 'Editar'}
                   </button>
                 </div>
 
                 {abierto === p.id && (
-                  <div className="plato-menu-editar">
-                    <label className="campo-mini">
-                      <small>Cambiar precio</small>
-                      <input
-                        className="num"
-                        inputMode="numeric"
-                        value={precioNuevo}
-                        placeholder={String(p.precio)}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setPrecioNuevo(e.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn-secundario btn-angosto"
-                      disabled={!precioNuevo.trim()}
-                      onClick={() => void cambiarPrecio(p)}
-                    >
-                      Guardar precio
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-peligro"
-                      onClick={() => void quitar(p)}
-                    >
-                      Quitar de la carta
-                    </button>
-                  </div>
+                  <>
+                    <div className="plato-menu-editar">
+                      <label className="campo-mini">
+                        <small>Se vende a</small>
+                        <input
+                          className="num"
+                          inputMode="numeric"
+                          value={milesAlEscribir(precioNuevo)}
+                          placeholder={milesAlEscribir(String(p.precio))}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setPrecioNuevo(milesAlEscribir(e.target.value))}
+                        />
+                      </label>
+                      <label className="campo-mini">
+                        <small>Me cuesta</small>
+                        <input
+                          className="num"
+                          inputMode="numeric"
+                          value={milesAlEscribir(costoNuevo)}
+                          placeholder={p.costo === null ? '—' : milesAlEscribir(String(p.costo))}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setCostoNuevo(milesAlEscribir(e.target.value))}
+                          disabled={p.tiene_receta}
+                          title={
+                            p.tiene_receta
+                              ? 'Este plato tiene receta: el costo sale de sus insumos.'
+                              : undefined
+                          }
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        className="btn-secundario btn-angosto"
+                        onClick={() => void guardarPlato(p)}
+                      >
+                        Guardar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-tenue"
+                        onClick={() =>
+                          setRecetaAbierta(recetaAbierta === p.id ? null : p.id)
+                        }
+                      >
+                        {recetaAbierta === p.id ? 'Cerrar receta' : 'Receta'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-peligro"
+                        onClick={() => void quitar(p)}
+                      >
+                        Quitar de la carta
+                      </button>
+                    </div>
+
+                    {recetaAbierta === p.id && (
+                      <div className="plato-menu-receta">
+                        <Receta
+                          platoId={p.id}
+                          insumos={insumos}
+                          alGuardar={() => cargar()}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -333,8 +413,8 @@ export default function MenuDelFinDeSemana() {
                 <input
                   className="num"
                   inputMode="numeric"
-                  value={precio}
-                  onChange={(e) => setPrecio(e.target.value)}
+                  value={milesAlEscribir(precio)}
+                  onChange={(e) => setPrecio(milesAlEscribir(e.target.value))}
                   placeholder="0"
                 />
               </label>

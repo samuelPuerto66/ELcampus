@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../api/cliente'
 import type { ClienteFiado, MetodoPago } from '../api/tipos'
-import { leerPesos, plata } from '../formato'
+import { leerPesos, milesAlEscribir, plata } from '../formato'
 
 /**
  * El lado derecho de la caja: cuánto se cobra y cómo se paga.
@@ -225,8 +225,8 @@ export default function PanelCobro({
           {modoPropina === 'otra' && (
             <input
               className="campo-cobro num"
-              value={propinaTexto}
-              onChange={(e) => setPropinaTexto(e.target.value)}
+              value={milesAlEscribir(propinaTexto)}
+              onChange={(e) => setPropinaTexto(milesAlEscribir(e.target.value))}
               placeholder="¿Cuánto dejó?"
               inputMode="numeric"
               autoFocus
@@ -256,8 +256,8 @@ export default function PanelCobro({
             <div className="opcion-fila">
               <input
                 className="campo-cobro num"
-                value={descuentoTexto}
-                onChange={(e) => setDescuentoTexto(e.target.value)}
+                value={milesAlEscribir(descuentoTexto)}
+                onChange={(e) => setDescuentoTexto(milesAlEscribir(e.target.value))}
                 placeholder="¿Cuánto se rebaja?"
                 inputMode="numeric"
                 autoFocus
@@ -336,9 +336,12 @@ export default function PanelCobro({
                     )}
                     <input
                       className="campo-recibido num"
-                      value={montos[m.valor] ?? ''}
+                      value={milesAlEscribir(montos[m.valor] ?? '')}
                       onChange={(e) =>
-                        setMontos((actual) => ({ ...actual, [m.valor]: e.target.value }))
+                        setMontos((actual) => ({
+                          ...actual,
+                          [m.valor]: milesAlEscribir(e.target.value),
+                        }))
                       }
                       placeholder="0"
                       inputMode="numeric"
@@ -413,8 +416,8 @@ export default function PanelCobro({
                 <span>{dividido ? 'Le entregan en efectivo' : 'Recibido'}</span>
                 <input
                   className="campo-recibido num"
-                  value={recibido}
-                  onChange={(e) => setRecibido(e.target.value)}
+                  value={milesAlEscribir(recibido)}
+                  onChange={(e) => setRecibido(milesAlEscribir(e.target.value))}
                   inputMode="numeric"
                   placeholder="0"
                 />

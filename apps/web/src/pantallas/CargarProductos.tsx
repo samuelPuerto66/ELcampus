@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 
 import { api } from '../api/cliente'
 import type { ConsultaCodigo, Producto } from '../api/tipos'
-import { leerCantidad, leerPesos, plata } from '../formato'
+import { leerCantidad, leerPesos, milesAlEscribir, plata } from '../formato'
 
 interface Borrador {
   codigo_barras: string
@@ -181,28 +181,18 @@ export default function CargarProductos() {
                 <input
                   className="num"
                   inputMode="numeric"
-                  value={borrador.precio}
-                  onChange={(e) => cambiar('precio', e.target.value)}
+                  value={milesAlEscribir(borrador.precio)}
+                  onChange={(e) => cambiar('precio', milesAlEscribir(e.target.value))}
                 />
-                {leerPesos(borrador.precio) !== null && (
-                  <small className="lectura-plata">
-                    = {plata(leerPesos(borrador.precio) ?? 0)}
-                  </small>
-                )}
               </label>
               <label className="campo">
                 <span className="etiqueta">Costo</span>
                 <input
                   className="num"
                   inputMode="numeric"
-                  value={borrador.costo}
-                  onChange={(e) => cambiar('costo', e.target.value)}
+                  value={milesAlEscribir(borrador.costo)}
+                  onChange={(e) => cambiar('costo', milesAlEscribir(e.target.value))}
                 />
-                {leerPesos(borrador.costo) !== null && (
-                  <small className="lectura-plata">
-                    = {plata(leerPesos(borrador.costo) ?? 0)}
-                  </small>
-                )}
               </label>
             </div>
 

@@ -37,6 +37,24 @@ export function leerPesos(texto: string): number | null {
   return Math.round(Number(entero || '0') + centavos)
 }
 
+const agrupado = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 })
+
+/**
+ * Pone los puntos de los miles mientras la persona escribe: 3500 → "3.500".
+ *
+ * En una caja se teclean cifras largas a toda hora y sin los puntos es
+ * fácil escribir un cero de más y no notarlo: "35000" y "350000" se
+ * parecen, "35.000" y "350.000" no.
+ *
+ * Deja solo los dígitos, así que aguanta que peguen "$ 12.000" o que se
+ * les escape una letra. `leerPesos` entiende de vuelta lo que esto escribe.
+ */
+export function milesAlEscribir(texto: string): string {
+  const digitos = texto.replace(/\D/g, '').slice(0, 12)
+  if (!digitos) return ''
+  return agrupado.format(Number(digitos))
+}
+
 /** Kilos o unidades: acá sí manda la coma decimal ("0,4" kg). */
 export function leerCantidad(texto: string): number | null {
   const valor = Number(texto.trim().replace(',', '.'))

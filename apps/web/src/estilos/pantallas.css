@@ -1654,16 +1654,203 @@ td.vacio {
   min-width: 220px;
   max-width: none;
 }
-.catalogo-filtros select {
-  font-family: var(--body);
-  background: var(--surface-2);
+.catalogo-seccion {
+  flex: 1;
+  min-width: 190px;
+  max-width: 260px;
+}
+
+/* ------------------------------------------- desplegable de secciones */
+/* Hecho a mano y no con <select>: la lista abierta del <select> la dibuja
+   Windows, con su azul, y no hay CSS que la alcance. */
+.desplegable {
+  position: relative;
+}
+.desplegable-boton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 11px;
   border: 1px solid var(--line);
   border-radius: 4px;
+  background: var(--surface-2);
   color: var(--espuma);
-  padding: 8px 10px;
   font-size: 14px;
-  width: 100%;
+  font-family: var(--body);
+  text-align: left;
 }
+.desplegable-boton:hover,
+.desplegable-boton.abierto {
+  border-color: color-mix(in srgb, var(--neon) 55%, transparent);
+  color: var(--neon-suave);
+}
+.desplegable-flecha {
+  color: var(--neon);
+  font-size: 11px;
+  flex: none;
+}
+.desplegable-cuantos {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--humo);
+}
+.desplegable-lista {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--neon) 40%, transparent);
+  border-radius: 6px;
+  background: #121212;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+  max-height: 320px;
+  overflow: auto;
+}
+.desplegable-opcion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--espuma);
+  font-size: 13.5px;
+  font-family: var(--body);
+  text-align: left;
+}
+.desplegable-opcion:hover {
+  background: color-mix(in srgb, var(--neon) 14%, transparent);
+  color: var(--neon-suave);
+}
+.desplegable-opcion.elegida {
+  color: var(--neon);
+  font-weight: 600;
+}
+.desplegable-opcion.elegida .desplegable-cuantos {
+  color: var(--neon-calido);
+}
+
+/* ------------------------------------------------ fila de un producto */
+/* Cerrada se lee de corrido: nombre, cuántos quedan, precio y lo que deja.
+   Los campos solo salen al tocarla, que es cuando se van a usar. */
+.articulo {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface-2);
+  margin-top: 7px;
+}
+.articulo.abierto {
+  border-color: color-mix(in srgb, var(--neon) 45%, transparent);
+}
+.articulo-fila {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 11px 13px;
+  background: none;
+  border: none;
+  color: var(--espuma);
+  text-align: left;
+}
+.articulo-fila:hover {
+  background: color-mix(in srgb, var(--neon) 5%, transparent);
+  border-radius: 8px;
+}
+.articulo-quien {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.articulo-quien b {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.articulo-quien small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--humo);
+}
+/* El código de barras, al lado del nombre: se lee sin abrir la fila y sirve
+   para comparar contra el empaque cuando hay dos presentaciones parecidas. */
+.articulo-codigo {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--humo);
+  letter-spacing: 0.02em;
+}
+.articulo-separador {
+  color: var(--line);
+}
+.articulo-precio {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.articulo-precio small {
+  font-size: 11px;
+  color: var(--humo-tenue);
+}
+.articulo-margen {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 78px;
+  white-space: nowrap;
+}
+.articulo-margen b {
+  font-size: 13px;
+}
+.articulo-margen small {
+  font-size: 10.5px;
+  color: var(--humo-tenue);
+}
+.articulo-flecha {
+  color: var(--humo-tenue);
+  font-size: 11px;
+  flex: none;
+}
+.articulo-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 2px 13px 13px;
+  border-top: 1px solid var(--line-soft);
+}
+.articulo-botones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Al final de la fila, alineados con los campos. */
+  margin-left: auto;
+}
+.articulo-botones .btn-secundario {
+  width: auto;
+}
+
+.plato-menu-deja {
+  color: var(--humo-tenue) !important;
+  font-size: 11px;
+}
+.plato-menu-receta {
+  padding: 0 13px 13px;
+}
+
 .catalogo-grupo-titulo {
   display: flex;
   align-items: center;
@@ -1692,10 +1879,10 @@ td.vacio {
 }
 
 .campo-mini small {
-  font-size: 10px;
+  font-size: 11.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--humo-tenue);
+  color: var(--humo);
   font-weight: 600;
 }
 

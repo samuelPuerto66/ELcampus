@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 
 import { api } from '../api/cliente'
 import type { TurnoCaja } from '../api/tipos'
-import { leerPesos, plata } from '../formato'
+import { leerPesos, milesAlEscribir, plata } from '../formato'
 import Fondo from './Fondo'
 
 /** Pantalla que aparece cuando todavía no hay turno abierto. */
@@ -42,8 +42,8 @@ export function AbrirCaja({ alAbrir }: { alAbrir: (turno: TurnoCaja) => void }) 
         <label className="campo">
           <span className="etiqueta">Con cuánto empiezas</span>
           <input
-            value={base}
-            onChange={(e) => setBase(e.target.value)}
+            value={milesAlEscribir(base)}
+            onChange={(e) => setBase(milesAlEscribir(e.target.value))}
             inputMode="numeric"
             placeholder="0"
             autoFocus
@@ -141,8 +141,8 @@ export function CerrarCaja({
         <label className="campo">
           <span className="etiqueta">Efectivo contado</span>
           <input
-            value={contado}
-            onChange={(e) => setContado(e.target.value)}
+            value={milesAlEscribir(contado)}
+            onChange={(e) => setContado(milesAlEscribir(e.target.value))}
             inputMode="numeric"
             placeholder="0"
             autoFocus
